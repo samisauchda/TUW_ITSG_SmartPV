@@ -1,0 +1,27 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>ESP32 Dropdown</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; }
+    .dropdown { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Web Server</h1>
+  <div class="dropdown">
+    <label for="options">Choose an option:</label>
+    <select id="options">
+      <option value="option1">Option 1</option>
+      <option value="option2">Option 2</option>
+      <option value="option3">Option 3</option>
+    </select>
+  </div>
+  <script>
+    document.getElementById('options').addEventListener('change', function() {
+      var value = this.value;
+      console.log('Selected:', value);
+    });
+  </script>
+</body>
+</html>

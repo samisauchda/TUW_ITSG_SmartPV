@@ -1,27 +1,78 @@
-<!DOCTYPE HTML>
+<!DOCTYPE html>
 <html>
 <head>
-  <title>ESP32 Dropdown</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; }
-    .dropdown { margin-top: 20px; }
-  </style>
+  <title>Module Configuration</title>
+  <script>
+    function addModule() {
+      const container = document.getElementById('modulesContainer');
+      const moduleCount = container.children.length + 1;
+
+      const moduleDiv = document.createElement('div');
+      moduleDiv.id = `module${moduleCount}`;
+      moduleDiv.innerHTML = `
+        <h3>Module ${moduleCount}</h3>
+        <label for="name${moduleCount}">Name:</label><br>
+        <input type="text" id="name${moduleCount}" name="name${moduleCount}"><br>
+        <label for="maxPower${moduleCount}">Max Power:</label><br>
+        <input type="number" step="0.01" id="maxPower${moduleCount}" name="maxPower${moduleCount}"><br>
+        <label for="angle${moduleCount}">Angle:</label><br>
+        <input type="number" id="angle${moduleCount}" name="angle${moduleCount}"><br><br>
+      `;
+      container.appendChild(moduleDiv);
+    }
+
+    function deleteModule(index) {
+      fetch('/delete?index=' + index, { method: 'GET' })
+        .then(response => response.text())
+        .then(data => {
+          alert(data);
+          location.reload();
+        });
+    }
+
+    function loadModules() {
+      fetch('/modules', { method: 'GET' })
+        .then(response => response.json())
+        .then(data => {
+          const container = document.getElementById('savedModulesContainer');
+          container.innerHTML = '';
+          data.modules.forEach((module, index) => {
+            const moduleDiv = document.createElement('div');
+            moduleDiv.innerHTML = `
+              <h3>Module ${index + 1}</h3>
+              <p>Name: ${module.name}</p>
+              <p>Max Power: ${module.maxPower}</p>
+              <p>Angle: ${module.angle}</p>
+              <button type="button" onclick="deleteModule(${index})">Delete</button>
+              <hr>
+            `;
+            container.appendChild(moduleDiv);
+          });
+        });
+    }
+
+    window.onload = loadModules;
+  </script>
 </head>
 <body>
-  <h1>ESP32 Web Server</h1>
-  <div class="dropdown">
-    <label for="options">Choose an option:</label>
-    <select id="options">
-      <option value="option1">Option 1</option>
-      <option value="option2">Option 2</option>
-      <option value="option3">Option 3</option>
-    </select>
-  </div>
-  <script>
-    document.getElementById('options').addEventListener('change', function() {
-      var value = this.value;
-      console.log('Selected:', value);
-    });
-  </script>
+  <h2>Add Modules</h2>
+  <form action="/add" method="post">
+    <div id="modulesContainer">
+      <div id="module1">
+        <h3>Module 1</h3>
+        <label for="name1">Name:</label><br>
+        <input type="text" id="name1" name="name1"><br>
+        <label for="maxPower1">Max Power:</label><br>
+        <input type="number" step="0.01" id="maxPower1" name="maxPower1"><br>
+        <label for="angle1">Angle:</label><br>
+        <input type="number" id="angle1" name="angle1"><br><br>
+      </div>
+    </div>
+    <button type="button" onclick="addModule()">Add Another Module</button><br><br>
+    <input type="submit" value="Submit">
+  </form>
+  <hr>
+  <h2>Saved Modules</h2>
+  <div id="savedModulesContainer"></div>
 </body>
 </html>

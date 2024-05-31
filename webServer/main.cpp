@@ -1,7 +1,9 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
+#include "email.h"
 
 // Network credentials for Access Point
 const char* ssidAP = "ESP32-Access-Point";
@@ -130,6 +132,41 @@ void startWebServer(const char* indexPage, const bool connected) {
       request->send(200, "text/plain", "Module data saved");
     });
 
+    server.on("/addEmailParams", HTTP_POST, [](AsyncWebServerRequest *request) {
+      
+      String serverParam = "SMTPserver";
+      String userParam = "SMTPuser";
+      String passParam = "SMTPpass";
+      String tlsPortParam = "SMTPportTLS";
+      String sslPortParam = "SMTPportSSL";
+      String TLSSSLParam = "TLSSSL";
+      String receiverMailParam = "receiverMAIL";
+
+      //JsonObject email = emails.createNestedObject();
+      DynamicJsonDocument email(2048);
+      email["SMTPServer"] = request->getParam(serverParam, true)->value();
+      email["SMTPUser"] = request->getParam(userParam, true)->value();
+      email["SMTPPass"] = request->getParam(passParam, true)->value();
+      email["TLSPort"] = request->getParam(tlsPortParam, true)->value().toInt();
+      email["SSLPort"] = request->getParam(sslPortParam, true)->value().toInt();
+      email["TLSSSL"] = request->getParam(TLSSSLParam, true)->value();
+      email["receiverMail"] = request->getParam(receiverMailParam, true)->value();
+
+      SPIFFS.remove("/email.json");
+      
+      File file = SPIFFS.open("/email.json", FILE_WRITE);
+      if (!file) {
+        Serial.println("Failed to open file for writing");
+        return;
+      }
+      serializeJson(email, file);
+      file.close();
+      Serial.println("Parameters saved to /params.json");
+      request->send(200, "text/plain", "Email params saved");
+
+      printEmailParams();
+    });
+
     // Route to get the saved modules
     server.on("/modules", HTTP_GET, [](AsyncWebServerRequest *request) {
       File file = SPIFFS.open("/modules.json", FILE_READ);
@@ -170,7 +207,17 @@ void startWebServer(const char* indexPage, const bool connected) {
       }
     });
 
-
+    server.on("/deleteAll", HTTP_POST, [](AsyncWebServerRequest *request){
+      bool dataDeleted = SPIFFS.remove("/modules.json");
+      bool wifiSSIDDeleted = SPIFFS.remove("/ssid.txt");
+      bool wifiPASSDeleted = SPIFFS.remove("/password.txt");
+  
+      if (dataDeleted && wifiSSIDDeleted && wifiPASSDeleted) {
+        request->send(200, "text/plain", "Data and WiFi credentials deleted successfully");
+      } else {
+        request->send(500, "text/plain", "Failed to delete data and/or WiFi credentials");
+      }
+    });
   } else {
     // handles for credential submission on AP mode
     server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -212,6 +259,9 @@ void setup() {
   // Read credentials from SPIFFS
   readCredentials();
 
+  // init EMail Server
+  initEmail();
+
   if (ssid.length() > 0 && connectToWiFi(ssid.c_str(), password.c_str())) {
     // If credentials are available and connection is successful, start the server with index2.html
     startWebServer("/index2.html", 1);
@@ -230,6 +280,7 @@ void setup() {
   xTaskCreate([](void*) {
     while (true) {
       printSavedModules();
+      printEmailParams();
       vTaskDelay(10000 / portTICK_PERIOD_MS);  // Print every 10 seconds
     }
   }, "PrintModulesTask", 8192, NULL, 1, NULL);
@@ -264,6 +315,20 @@ void printSavedModules() {
     Serial.println();
   } else {
     Serial.println("No modules saved.");
+  }
+}
+
+void printEmailParams() {
+  if (SPIFFS.exists("/email.json")) {
+    File file = SPIFFS.open("/email.json", FILE_READ);
+    StaticJsonDocument<1024> doc;
+    deserializeJson(doc, file);
+    file.close();
+    Serial.println("Email Params:");
+    serializeJsonPretty(doc, Serial);
+    Serial.println();
+  } else {
+    Serial.println("No email params.");
   }
 }
 

@@ -1,3 +1,5 @@
 plerup/EspSoftwareSerial@^8.2.0
-me-no-dev/ESPAsyncTCP@^1.2.2
+mobizt/ESP Mail Client@^3.4.19
 bblanchon/ArduinoJson@^7.0.4
+https://github.com/joltwallet/esp_littlefs.git
+me-no-dev/ESPAsyncTCP@^1.2.2

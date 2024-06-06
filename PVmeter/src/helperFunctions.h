@@ -1,10 +1,11 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 
+
 void printSavedModules() {
   if (SPIFFS.exists("/modules.json")) {
     File file = SPIFFS.open("/modules.json", FILE_READ);
-    StaticJsonDocument<1024> doc;
+    JsonDocument doc;
     deserializeJson(doc, file);
     file.close();
     Serial.println("Saved Modules:");
@@ -18,7 +19,7 @@ void printSavedModules() {
 void printEmailParams() {
   if (SPIFFS.exists("/email.json")) {
     File file = SPIFFS.open("/email.json", FILE_READ);
-    StaticJsonDocument<1024> doc;
+    JsonDocument doc;
     deserializeJson(doc, file);
     file.close();
     Serial.println("Email Params:");
@@ -33,6 +34,10 @@ void listSPIFFSFiles() {
   File root = SPIFFS.open("/");
   File file = root.openNextFile();
 
+  if(!file) {
+    Serial.println("No files on SPIFFS");
+    return;
+  }
   while (file) {
     if (file.isDirectory()) {
       Serial.print("DIR : ");
@@ -46,3 +51,6 @@ void listSPIFFSFiles() {
     file = root.openNextFile();
   }
 }
+
+
+

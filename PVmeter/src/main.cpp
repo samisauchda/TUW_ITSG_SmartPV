@@ -157,6 +157,13 @@ void setup() {
   //     vTaskDelay(10000 / portTICK_PERIOD_MS);  // Print every 10 seconds
   //   }
   // }, "PrintModulesTask", 8192, NULL, 1, NULL);
+
+  xTaskCreate([](void*) {
+    for (std::list<Sensor*>::iterator it = sensors->begin(); it != sensors->end(); ++it)
+    {
+      (*it)->loop();
+    }
+   }, "SensorTask", 8192, NULL, 5, NULL);
 }
 
 int analogValue = 0;
@@ -166,8 +173,5 @@ int test = 0;
 void loop() {
   // NOTHING TO DO
 
-  for (std::list<Sensor*>::iterator it = sensors->begin(); it != sensors->end(); ++it)
-    {
-      (*it)->loop();
-    }
+
 }

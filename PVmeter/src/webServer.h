@@ -474,7 +474,7 @@ void smtpTask(void * parameter) {
   config.login.password = "rbxpegoflnsownim";
   config.login.user_domain = "";
 
-  config.time.ntp_server = F("pool.ntp.org,time.nist.gov");
+  config.time.ntp_server = F("at.pool.ntp.org,de.pool.ntp.org,pool.ntp.org");
   config.time.gmt_offset = 3;
   config.time.day_light_offset = 0;
 

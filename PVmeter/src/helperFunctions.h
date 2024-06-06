@@ -1,10 +1,11 @@
 #include <ArduinoJson.h>
-#include <SPIFFS.h>
+//#include <LittleFS.h>
+#include <esp_LittleFS.h>
 
 
 void printSavedModules() {
-  if (SPIFFS.exists("/modules.json")) {
-    File file = SPIFFS.open("/modules.json", FILE_READ);
+  if (LittleFS.exists("/modules.json")) {
+    File file = LittleFS.open("/modules.json", FILE_READ);
     JsonDocument doc;
     deserializeJson(doc, file);
     file.close();
@@ -17,8 +18,8 @@ void printSavedModules() {
 }
 
 void printEmailParams() {
-  if (SPIFFS.exists("/email.json")) {
-    File file = SPIFFS.open("/email.json", FILE_READ);
+  if (LittleFS.exists("/email.json")) {
+    File file = LittleFS.open("/email.json", FILE_READ);
     JsonDocument doc;
     deserializeJson(doc, file);
     file.close();
@@ -30,12 +31,12 @@ void printEmailParams() {
   }
 }
 
-void listSPIFFSFiles() {
-  File root = SPIFFS.open("/");
+void listLittleFSFiles() {
+  File root = LittleFS.open("/");
   File file = root.openNextFile();
 
   if(!file) {
-    Serial.println("No files on SPIFFS");
+    Serial.println("No files on LittleFS");
     return;
   }
   while (file) {

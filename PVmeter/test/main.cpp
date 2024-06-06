@@ -7,7 +7,6 @@
 #include "config.h"
 #include <sml/sml_file.h>
 #include "smlDebug.h"
-#include <esp_LittleFS.h>
 
 
 
@@ -27,15 +26,15 @@ float powerIn=0.0;
 
 
 
-// Initialize LittleFS
-void initLittleFS() {
-  if (!LittleFS.begin(true)) {
-    Serial.println("An error has occurred while mounting LittleFS");
+// Initialize SPIFFS
+void initSPIFFS() {
+  if (!SPIFFS.begin(true)) {
+    Serial.println("An error has occurred while mounting SPIFFS");
     return;
   }
-  Serial.println("LittleFS mounted successfully");
+  Serial.println("SPIFFS mounted successfully");
 
-  listLittleFSFiles();
+  listSPIFFSFiles();
 }
 
 
@@ -101,12 +100,12 @@ void setup() {
   }
 
 
-  // Initialize LittleFS
-  initLittleFS();
+  // Initialize SPIFFS
+  initSPIFFS();
 
   
 
-  // Read credentials from LittleFS
+  // Read credentials from SPIFFS
   if (readCredentials()) {
     Serial.println("WiFi credentials available. Starting webServer Task");
     xTaskCreate(

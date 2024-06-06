@@ -1,6 +1,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
-#include <SPIFFS.h>
+//#include <SPIFFS.h>
+#include <esp_LittleFS.h>
 #include <ESP_Mail_Client.h>
 
 #include "helperFunctions.h"
@@ -61,10 +62,10 @@ void setEmailParams(String newSmtpServer,
     receiverMail = newreceiverMail;
 }
 
-// Read credentials from SPIFFS
+// Read credentials from LittleFS
 bool readCredentials() {
-  if (SPIFFS.exists(ssidPath)) {
-    File file = SPIFFS.open(ssidPath, "r");
+  if (LittleFS.exists(ssidPath)) {
+    File file = LittleFS.open(ssidPath, "r");
     if (file) {
       ssid = file.readStringUntil('\n');
       ssid.trim();
@@ -74,8 +75,8 @@ bool readCredentials() {
     return false;
   }
 
-  if (SPIFFS.exists(passwordPath)) {
-    File file = SPIFFS.open(passwordPath, "r");
+  if (LittleFS.exists(passwordPath)) {
+    File file = LittleFS.open(passwordPath, "r");
     if (file) {
       password = file.readStringUntil('\n');
       password.trim();
@@ -88,15 +89,15 @@ bool readCredentials() {
   return true;
 }
 
-// Save credentials to SPIFFS
+// Save credentials to LittleFS
 void saveCredentials(const char* ssid, const char* password) {
-  File file = SPIFFS.open(ssidPath, "w");
+  File file = LittleFS.open(ssidPath, "w");
   if (file) {
     file.println(ssid);
     file.close();
   }
 
-  file = SPIFFS.open(passwordPath, "w");
+  file = LittleFS.open(passwordPath, "w");
   if (file) {
     file.println(password);
     file.close();
@@ -129,13 +130,13 @@ bool connectToWiFi(const char* ssid, const char* password) {
 
 void startWebServer(const char* indexPage, const bool connected) {
   server.on("/", HTTP_GET, [indexPage](AsyncWebServerRequest *request) {
-    request->send(SPIFFS, indexPage, "text/html");
+    request->send(LittleFS, indexPage, "text/html");
   });
 
   server.on("/add", HTTP_POST, [](AsyncWebServerRequest *request) {
     JsonDocument doc;
-    if (SPIFFS.exists("/modules.json")) {
-      File file = SPIFFS.open("/modules.json", FILE_READ);
+    if (LittleFS.exists("/modules.json")) {
+      File file = LittleFS.open("/modules.json", FILE_READ);
       deserializeJson(doc, file);
       file.close();
     }
@@ -176,7 +177,7 @@ void startWebServer(const char* indexPage, const bool connected) {
         module["lon"] = request->getParam(lonParam, true)->value();
     }
 
-    File file = SPIFFS.open("/modules.json", FILE_WRITE);
+    File file = LittleFS.open("/modules.json", "w+");
     serializeJson(doc, file);
     file.close();
 
@@ -213,9 +214,9 @@ void startWebServer(const char* indexPage, const bool connected) {
     if (request->hasParam(receiverMailParam, true))
       email["receiverMail"] = request->getParam(receiverMailParam, true)->value();
 
-    //SPIFFS.remove("/email.json");
+    //LittleFS.remove("/email.json");
     
-    File file = SPIFFS.open("/email.json", FILE_WRITE);
+    File file = LittleFS.open("/email.json", FILE_WRITE);
     if (!file) {
       Serial.println("Failed to open file for writing");
       return;
@@ -232,7 +233,7 @@ void startWebServer(const char* indexPage, const bool connected) {
 
   // Route to get the saved modules
   server.on("/modules", HTTP_GET, [](AsyncWebServerRequest *request) {
-    File file = SPIFFS.open("/modules.json", FILE_READ);
+    File file = LittleFS.open("/modules.json", FILE_READ);
     String json;
     if (file) {
       json = file.readString();
@@ -245,7 +246,7 @@ void startWebServer(const char* indexPage, const bool connected) {
   });
 
   server.on("/getEmailParams", HTTP_GET, [](AsyncWebServerRequest *request) {
-    File file = SPIFFS.open("/email.json", FILE_READ);
+    File file = LittleFS.open("/email.json", FILE_READ);
     String json;
     if (file) {
       json = file.readString();
@@ -262,8 +263,8 @@ void startWebServer(const char* indexPage, const bool connected) {
     if (request->hasParam("index")) {
       int index = request->getParam("index")->value().toInt();
       JsonDocument doc;
-      if (SPIFFS.exists("/modules.json")) {
-        File file = SPIFFS.open("/modules.json", FILE_READ);
+      if (LittleFS.exists("/modules.json")) {
+        File file = LittleFS.open("/modules.json", FILE_READ);
         deserializeJson(doc, file);
         file.close();
       }
@@ -272,7 +273,7 @@ void startWebServer(const char* indexPage, const bool connected) {
       if (!modules.isNull() && index >= 0 && index < modules.size()) {
         modules.remove(index);
 
-        File file = SPIFFS.open("/modules.json", FILE_WRITE);
+        File file = LittleFS.open("/modules.json", FILE_WRITE);
         serializeJson(doc, file);
         file.close();
 
@@ -291,18 +292,18 @@ void startWebServer(const char* indexPage, const bool connected) {
     bool wifiSSIDDeleted;
     bool wifiPASSDeleted;
 
-    if( SPIFFS.exists("/modules.json"))
-      modulesDeleted = SPIFFS.remove("/modules.json");
+    if( LittleFS.exists("/modules.json"))
+      modulesDeleted = LittleFS.remove("/modules.json");
       modulesDeleted = !modulesDeleted;
 
-    if( SPIFFS.exists("/email.json"))
-      emailDeleted = SPIFFS.remove("/email.json");
+    if( LittleFS.exists("/email.json"))
+      emailDeleted = LittleFS.remove("/email.json");
 
-    if( SPIFFS.exists("/ssid.txt"))
-      wifiSSIDDeleted = SPIFFS.remove("/ssid.txt");
+    if( LittleFS.exists("/ssid.txt"))
+      wifiSSIDDeleted = LittleFS.remove("/ssid.txt");
 
-    if( SPIFFS.exists("/password.txt"))
-      wifiPASSDeleted = SPIFFS.remove("/password.txt");
+    if( LittleFS.exists("/password.txt"))
+      wifiPASSDeleted = LittleFS.remove("/password.txt");
 
     char msgOut[1024]; 
     snprintf(msgOut, sizeof(msgOut), "Modules deleted: %s", modulesDeleted?"true":"false");
@@ -324,7 +325,7 @@ void webServerTask(void * parameter) {
 
     TaskParams task_params;
     task_params.message_to_send = WiFi.localIP().toString(); // 500 ms delay
-    
+    Serial.println(task_params.message_to_send);
     xTaskCreate(
       smtpTask,               // Function to implement the task
       "EmailTask",            // Name of the task
@@ -369,7 +370,7 @@ void credentialsTask(void * parameter){
   //startCredentialsServer("/index.html");
 
   credentialsServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(SPIFFS, "/index.html", "text/html");
+    request->send(LittleFS, "/index.html", "text/html");
   });
 
   // handles for credential submission on AP mode
@@ -406,9 +407,9 @@ void credentialsTask(void * parameter){
       if (request->hasParam(receiverMailParam, true))
         email["receiverMail"] = request->getParam(receiverMailParam, true)->value();
 
-      //SPIFFS.remove("/email.json");
+      //LittleFS.remove("/email.json");
       
-      File file = SPIFFS.open("/email.json", FILE_WRITE);
+      File file = LittleFS.open("/email.json", FILE_WRITE);
       if (!file) {
         Serial.println("Failed to open file for writing");
         return;
@@ -477,6 +478,8 @@ void smtpTask(void * parameter) {
   config.time.gmt_offset = 3;
   config.time.day_light_offset = 0;
 
+  Serial.println("Message to send:");
+  Serial.println(message_to_send);
   // Set the message content
   SMTP_Message message;
   message.sender.name = "ESP32";

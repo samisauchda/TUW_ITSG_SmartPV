@@ -25,6 +25,7 @@ float powerIn=0.0;
 
 
 
+TaskHandle_t sensorTaskHandle = NULL;
 
 
 // Initialize LittleFS
@@ -159,11 +160,17 @@ void setup() {
   // }, "PrintModulesTask", 8192, NULL, 1, NULL);
 
   xTaskCreate([](void*) {
-    for (std::list<Sensor*>::iterator it = sensors->begin(); it != sensors->end(); ++it)
-    {
-      (*it)->loop();
+    
+
+    for(;;) {
+    // Allow the task to run indefinitely
+      for (std::list<Sensor*>::iterator it = sensors->begin(); it != sensors->end(); ++it)
+      {
+        (*it)->loop();
+      }
+      
     }
-   }, "SensorTask", 8192, NULL, 5, NULL);
+   }, "SensorTask", 20000, NULL, 1, &sensorTaskHandle);
 }
 
 int analogValue = 0;

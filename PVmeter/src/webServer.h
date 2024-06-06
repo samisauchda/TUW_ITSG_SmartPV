@@ -136,9 +136,13 @@ void startWebServer(const char* indexPage, const bool connected) {
   server.on("/add", HTTP_POST, [](AsyncWebServerRequest *request) {
     JsonDocument doc;
     if (LittleFS.exists("/modules.json")) {
-      File file = LittleFS.open("/modules.json", FILE_READ);
+      Serial.println("Modules.json exists; reading content");
+      File file = LittleFS.open("/modules.json", "w+");
       deserializeJson(doc, file);
       file.close();
+    }
+    else {
+      LittleFS.mkdir("/modules.json");
     }
 
     JsonArray modules = doc["modules"].as<JsonArray>();
@@ -177,9 +181,12 @@ void startWebServer(const char* indexPage, const bool connected) {
         module["lon"] = request->getParam(lonParam, true)->value();
     }
 
-    File file = LittleFS.open("/modules.json", "w+");
-    serializeJson(doc, file);
+    Serial.println(modules);
+
+    File file = LittleFS.open("/modules.json", FILE_WRITE);
+    serializeJson(modules, file);
     file.close();
+    printSavedModules();
 
     request->send(200, "text/plain", "Module data saved");
   });
@@ -326,13 +333,13 @@ void webServerTask(void * parameter) {
     TaskParams task_params;
     task_params.message_to_send = WiFi.localIP().toString(); // 500 ms delay
     Serial.println(task_params.message_to_send);
-    xTaskCreate(
-      smtpTask,               // Function to implement the task
-      "EmailTask",            // Name of the task
-      10000,                  // Stack size in words
-      &task_params,                   // Task input parameter
-      1,                      // Priority of the task
-      &smtpTaskHandle);       // Task handle
+    // xTaskCreate(
+    //   smtpTask,               // Function to implement the task
+    //   "EmailTask",            // Name of the task
+    //   10000,                  // Stack size in words
+    //   &task_params,                   // Task input parameter
+    //   1,                      // Priority of the task
+    //   &smtpTaskHandle);       // Task handle
     
 
   } else {
@@ -350,10 +357,11 @@ void webServerTask(void * parameter) {
     Serial.println("deleted WebServer Task. Starting Credentials task");
   }
 
+  //vTaskDelete(webServerTaskHandle);
   for(;;) {
     // Allow the task to run indefinitely
-    delay(1000);
-    Serial.println(WiFi.status());
+    delay(10);
+    //Serial.println(WiFi.status());
   }
 }
 

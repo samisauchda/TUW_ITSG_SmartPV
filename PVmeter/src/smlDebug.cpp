@@ -16,6 +16,8 @@ Licensed under the GNU General Public License v3.0
 
 *** end change log *** */
 
+#define SERIAL_DEBUG 1
+
 void DEBUG_DUMP_BUFFER(byte *buf, int size)
 {
 #if (defined(SERIAL_DEBUG_VERBOSE) && SERIAL_DEBUG_VERBOSE)

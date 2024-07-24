@@ -5,6 +5,8 @@
 #include <sml/sml_file.h>
 #include <sml/sml_value.h>
 
+#define SERIAL_DEBUG 1
+
 // from FormattingSerialDebug
 #if (SERIAL_DEBUG)
     #define DEBUG(format, ...) printf(format, ##__VA_ARGS__); fflush(stdout); SERIAL_DEBUG_IMPL.println()
@@ -16,12 +18,12 @@
 #endif
 
 
-//#ifdef DEBUG
-//#define SERIAL_DEBUG true
-//#define SERIAL_DEBUG_VERBOSE true
-//#else
-//#define SERIAL_DEBUG false
-//#endif
+// #ifdef DEBUG
+// #define SERIAL_DEBUG true
+// #define SERIAL_DEBUG_VERBOSE true
+// #else
+// #define SERIAL_DEBUG false
+// #endif
 
 void DEBUG_DUMP_BUFFER(byte *buf, int size);
 void DEBUG_SML_FILE(sml_file *file);

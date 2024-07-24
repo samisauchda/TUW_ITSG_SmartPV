@@ -27,6 +27,8 @@ TaskHandle_t webServerTaskHandle = NULL;
 TaskHandle_t credentialsTaskHandle = NULL;
 TaskHandle_t smtpTaskHandle = NULL;
 
+TimerHandle_t timerHandleStopWebserver = NULL;
+
 String smtpServer;
 String smtpUser;
 String smtpPass;
@@ -320,6 +322,16 @@ void startWebServer(const char* indexPage, const bool connected) {
   
   server.begin();
   Serial.println("HTTP server started");
+}
+
+void timerCallback(TimerHandle_t xTimer) {
+    Serial.println("Timer expired, killing webserver task...");
+    if (webServerTaskHandle != NULL) {
+        vTaskDelete(webServerTaskHandle);
+        webServerTaskHandle = NULL; // Clean up the handle
+        return;
+    }
+    Serial.println("WebServer task not started or already killed. Doing nothing...");
 }
 
 

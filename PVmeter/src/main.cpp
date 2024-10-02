@@ -14,8 +14,8 @@
 #include <sml/sml_file.h>
 #include "smlDebug.h"
 #include <esp_LittleFS.h>
-#include <ESP32Time.h>
 
+#include "timeFunctions.h"
 #include "csvFunctions.h"
 
 
@@ -27,22 +27,14 @@ double energyOut=0.0;
 double vzTestValue=0.0;
 float powerIn=0.0;
 
-//ESP32Time rtc;
-ESP32Time rtc(3600);  // offset in seconds GMT+1
-const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 0;
-const int   daylightOffset_sec = 3600;
-const int   maxClockSyncRetry = 5;
-const int   clockRetryDelay = 5000;
+float* PVData = NULL; //Pointer to array for 
+float* SensorMaxPower = NULL; // Pointer to array for max Power datat from sensor
+
 
 std::list<Sensor *> *sensors = new std::list<Sensor *>();
 TaskHandle_t sensorTaskHandle = NULL;
 
 
-typedef struct {
-    char datetime[14];  // 13 Zeichen für YYYYMMDD:HHMM und 1 für Nullterminator
-    double value1;
-} DataRow;
 
 
 
@@ -57,34 +49,6 @@ void initLittleFS() {
 
   listLittleFSFiles();
 }
-
-
-
-void syncRTCtime() {
-  int attempt = 0;
-  bool success = false;
-
-  struct tm timeinfo;
-
-  while (attempt < maxClockSyncRetry && !success) {
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    if (getLocalTime(&timeinfo)) {
-      rtc.setTimeStruct(timeinfo);
-      Serial.print("Time synced with NTP: ");
-      Serial.println(rtc.getTime());
-      success = true;
-    } else {
-      printf("Failed to obtain time, retrying %i/%i... \n", attempt, maxClockSyncRetry);
-      attempt++;
-      delay(clockRetryDelay);
-    }
-  }
-
-  if (!success) {
-    Serial.println("Failed to sync time after maximum retries.");
-  }
-}
-
 
 
 // ##########################################################################################
@@ -140,6 +104,15 @@ void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState
               Serial.print('@');
               Serial.print(rtc.getTime());
 
+              int index = calculateDataIndex();
+
+              if (SensorMaxPower[index] < value) {
+                SensorMaxPower[index] = value;
+              }
+    
+              // ch
+              // writeToCSV(value, 99);
+
             }
           }
 
@@ -148,18 +121,6 @@ void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState
 
     // free the malloc'd memory
     sml_file_free(file);
-
-    Serial.print("ms, ");
-    Serial.print("P=");
-    Serial.print(powerIn);
-    Serial.print("W, ");
-    Serial.print("E_in=");
-    Serial.print(energyIn);
-    Serial.print("Wh, ");
-    Serial.print("E_out=");
-    Serial.print(energyOut);
-    Serial.println("Wh");
-    Serial.flush();
     }
 }
 
@@ -242,27 +203,41 @@ void setup() {
   // Configure and sync RTC to NTP
   syncRTCtime();
 
-  // read csv file
-  DataRow matrix[MAX_ROWS];
-  int num_rows = 200;
-
-  readCSV(csvFilePath);
-  //read_csv("/hourly_data.csv", matrix, &num_rows);
+  getFormattedTime();
 
 
-  for (int i = 0; i < maxRows; i++) {
-    for (int j = 0; j < maxCols; j++) {
-      if (data[i][j] != "") {
-        Serial.print(data[i][j]);
-        if (j < maxCols - 1 && data[i][j+1] != "") {
-          Serial.print(", ");
-        }
-      }
-    }
-    Serial.println();
+
+  const char* fileURL = "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=48.212&lon=16.378&startyear=2016&endyear=2016pvcalculation=1&peakpower=1&mountingplace=building&loss=1&optimalangles=1&optimalinclination=1&outputformat=csv&browser=1";
+  const char* filename = "/newData.csv";    // File to save in SPIFFS
+
+  listLittleFSFiles();
+  // Download the file
+  if (downloadAndSaveFile(fileURL, filename)) {
+    Serial.println("Datei erfolgreich heruntergeladen und gespeichert");
+  } else {
+    Serial.println("Fehler beim Download oder Speichern");
   }
+  listLittleFSFiles();
+  // // Array to store timestamps
+  // String timeArray[maxRows];
 
+  // 2D array to store numerical CSV data
+  // Required size for the array
+  size_t arraySize = 8760; // Number of elements
   
+  float* PVData = allocateFloatArray(arraySize);
+  float* SensorMaxPower = allocateFloatArray(arraySize);
+
+  // Call the function to read the CSV file
+  readCSVtoArray("/new_data.csv", PVData, arraySize);
+  
+
+  // Print CSV data from arrays (for debugging)
+  // for (int i = 0; i < arraySize; i++) {
+  //   // Serial.print(timeArray[i]);
+  //   Serial.print("\t");
+  //   Serial.println(PVData[i]);
+  // }
   //init and start sensor Task, run forever
   xTaskCreate([](void*) {
     
@@ -284,5 +259,7 @@ int test = 0;
 
 
 void loop() {
-  
+  sleep(50);
+
+ 
 }

@@ -3,7 +3,7 @@
 //#include <SPIFFS.h>
 #include <esp_LittleFS.h>
 #include <ESP_Mail_Client.h>
-
+#include <HTTPClient.h>
 #include "helperFunctions.h"
 // #include "email.h"
 
@@ -471,6 +471,63 @@ void credentialsTask(void * parameter){
     // Allow the task to run indefinitely
     delay(10);
   }
+}
+
+void downloadFile(const char* url, const char* filepath) {
+  HTTPClient http;
+  http.begin(url);
+
+  Serial.println("Trying to download file...");
+  int httpCode = http.GET();
+  if (httpCode > 0) {
+    if (httpCode == HTTP_CODE_OK) {
+      Serial.printf("Download successful. Trying to save to %s\n", filepath);
+      File file = LittleFS.open(filepath, FILE_WRITE);
+      if (!file) {
+        Serial.println("Failed to open file for writing");
+        return;
+      }
+
+      // Write file to SPIFFS
+      String payload = http.getString();
+      file.print(payload);
+      file.close();
+      Serial.println("File downloaded successfully");
+    } else {
+      Serial.printf("File download NOT successful %s\n", http.errorToString(httpCode).c_str());
+    }
+  } else {
+    Serial.printf("GET request failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+}
+
+
+bool downloadAndSaveFile(const char* url, const char* filePath) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("Keine WLAN-Verbindung");
+    return false;
+  }
+
+  HTTPClient http;
+  http.begin(url);
+  int httpCode = http.GET();
+
+  if (httpCode > 0) {
+    File file = LittleFS.open(filePath, "w");
+    if (file) {
+      file.print(http.getString());
+      file.close();
+      Serial.println("Datei erfolgreich gespeichert");
+      return true;
+    } else {
+      Serial.println("Fehler beim Öffnen der Datei");
+    }
+  } else {
+    Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+  return false;
 }
 
 void smtpCallback(SMTP_Status status) {

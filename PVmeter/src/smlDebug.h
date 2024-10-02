@@ -5,7 +5,7 @@
 #include <sml/sml_file.h>
 #include <sml/sml_value.h>
 
-#define SERIAL_DEBUG 1
+#define SERIAL_DEBUG 0
 
 // from FormattingSerialDebug
 #if (SERIAL_DEBUG)

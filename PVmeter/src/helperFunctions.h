@@ -1,7 +1,19 @@
+#ifndef HELPERFUNCTIONS_H_
+#define HELPERFUNCTIONS_H_
+
 #include <ArduinoJson.h>
 //#include <LittleFS.h>
 #include <esp_LittleFS.h>
 
+int calculateDataIndex() {
+  int dayOfYear = rtc.getDayofYear();
+  
+  // Get the current hour (0-23)
+  int hour = rtc.getHour();
+
+  int index = dayOfYear * 24 + hour;
+  return index;
+}
 
 void printSavedModules() {
   if (LittleFS.exists("/modules.json")) {
@@ -54,4 +66,4 @@ void listLittleFSFiles() {
 }
 
 
-
+#endif

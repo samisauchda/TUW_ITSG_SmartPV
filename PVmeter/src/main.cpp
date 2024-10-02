@@ -104,8 +104,9 @@ void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState
               Serial.print('@');
               Serial.print(rtc.getTime());
 
+              // calculate index for array data access
               int index = calculateDataIndex();
-
+              // save new power value of higher then already saved
               if (SensorMaxPower[index] < value) {
                 SensorMaxPower[index] = value;
               }

@@ -14,7 +14,6 @@
 
 
 
-
 void readCSVtoArray(const char* filePath, float dataArray[], int maxRows);
 float* allocateFloatArray(size_t arraySize);
 

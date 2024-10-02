@@ -200,6 +200,8 @@ void setup() {
 
   }
 
+  
+
   sleep(5);
   // Configure and sync RTC to NTP
   syncRTCtime();

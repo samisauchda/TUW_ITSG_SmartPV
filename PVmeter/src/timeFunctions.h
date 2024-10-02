@@ -14,6 +14,15 @@ const int   daylightOffset_sec = 3600;
 const int   maxClockSyncRetry = 5;
 const int   clockRetryDelay = 5000;
 
+int calculateDataIndex() {
+  int dayOfYear = rtc.getDayofYear();
+  
+  // Get the current hour (0-23)
+  int hour = rtc.getHour();
+
+  int index = dayOfYear * 24 + hour;
+  return index;
+}
 
 String getFormattedTime() {
     
@@ -24,7 +33,6 @@ String getFormattedTime() {
 
     return String("Hello");
 }
-
 
 void syncRTCtime() {
   int attempt = 0;

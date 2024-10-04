@@ -1,173 +1,44 @@
-<!DOCTYPE html>
+<!DOCTYPE HTML>
 <html>
 <head>
-  <title>Module Configuration</title>
-  <script>
-    function addModule() {
-      const container = document.getElementById('modulesContainer');
-      const moduleCount = container.children.length + 1;
-
-      const moduleDiv = document.createElement('div');
-      moduleDiv.id = `module${moduleCount}`;
-      moduleDiv.innerHTML = `
-        <h3>Module ${moduleCount}</h3>
-        <label for="name${moduleCount}">Name:</label><br>
-        <input type="text" id="name${moduleCount}" name="name${moduleCount}"><br>
-
-        <label for="maxPower${moduleCount}">Max Power [kWp]:</label><br>
-        <input type="number" step="0.01" id="maxPower${moduleCount}" name="maxPower${moduleCount}"><br>
-
-        <label for="systemloss${moduleCount}">System Loss [%]:</label><br>
-        <input type="number" id="systemloss${moduleCount}" name="systemloss${moduleCount}"><br>
-
-        <label for="slope${moduleCount}">Slope [°]:</label><br>
-        <input type="number" step="0.1" id="slope${moduleCount}" name="slope${moduleCount}"><br>
-
-        <label for="azimuth${moduleCount}">Azimuth [°]:</label><br>
-        <input type="number" step="0.1" id="azimuth${moduleCount}" name="azimuth${moduleCount}"><br>
-
-        <label for="lat${moduleCount}">Latitude (WGS84):</label><br>
-        <input type="text" id="lat${moduleCount}" name="lat${moduleCount}"><br>
-
-        <label for="lon${moduleCount}">Longitude (WGS84):</label><br>
-        <input type="text" id="lon${moduleCount}" name="lon${moduleCount}"><br><br>
-      `;
-      container.appendChild(moduleDiv);
-    }
-
-    function deleteModule(index) {
-      fetch('/delete?index=' + index, { method: 'GET' })
-        .then(response => response.text())
-        .then(data => {
-          alert(data);
-          location.reload();
-        });
-    }
-
-    function loadModules() {
-      fetch('/modules', { method: 'GET' })
-        .then(response => response.json())
-        .then(data => {
-          const container = document.getElementById('savedModulesContainer');
-          container.innerHTML = '';
-          data.modules.forEach((module, index) => {
-            const moduleDiv = document.createElement('div');
-            moduleDiv.innerHTML = `
-              <h3>Module ${index + 1}</h3>
-              <p>Name: ${module.name}</p>
-              <p>Max Power: ${module.maxPower}</p>
-              <p>System Loss: ${module.systemLoss}</p>
-              <p>Slope: ${module.slope}</p>
-              <p>Azimuth: ${module.azimuth}</p>
-              <p>Latitude: ${module.lat}</p>
-              <p>Longitude: ${module.lon}</p>
-              <button type="button" onclick="deleteModule(${index})">Delete</button>
-              <hr>
-            `;
-            container.appendChild(moduleDiv);
-          });
-        });
-    }
-
-    function loadEmailParams() {
-      fetch('/getEmailParams', { method: 'GET' })
-        .then(response => response.json())
-        .then(data => {
-          const container = document.getElementById('savedEmailParamsContainer');
-          container.innerHTML = '';
-          const moduleDiv = document.createElement('div');
-          moduleDiv.innerHTML = `
-            <p>SMTP Server: ${data.SMTPServer}</p>
-            <p>SMTP User: ${data.SMTPUser}</p>
-            <p>SMTP Password: ${data.SMTPPass}</p>
-            <p>TLS Port: ${data.TLSPort}</p>
-            <p>SSL Port: ${data.SSLPort}</p>
-            <p>TLS/SSL: ${data.TLSSSL}</p>
-            <p>receiver Mail: ${data.receiverMail}</p>
-          `;
-          container.appendChild(moduleDiv);
-          
-        });
-    }
-
-    function deleteData() {
-      fetch('/deleteAll', {
-        method: 'POST'
-      }).then(response => response.text()).then(data => {
-        alert(data);
-      }).catch(error => {
-        console.error('Error:', error); // Debug output
-      });
-    }
-
-    window.onload = loadModules;
-    window.onload = loadEmailParams;
-  </script>
+  <title>Parameter Entry</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="style.css"> <!-- Link to the CSS file -->
 </head>
 <body>
-  <h2>Add Modules</h2>
-  <form action="/add" method="post">
-    <div id="modulesContainer">
-      <div id="module1">
-        <h3>Module 1</h3>
-        <label for="name1">Name:</label><br>
-        <input type="text" id="name1" name="name1"><br>
-
-        <label for="maxPower1">Max Power [kWp]:</label><br>
-        <input type="number" step="0.01" id="maxPower1" name="maxPower1"><br>
-
-        <label for="systemloss1">System Loss [%]:</label><br>
-        <input type="number" id="systemloss1" name="systemloss1"><br>
-
-        <label for="slope1">Slope [°]:</label><br>
-        <input type="number" step="0.1" id="slope1" name="slope1"><br>
-
-        <label for="azimuth1">Azimuth [°]:</label><br>
-        <input type="number" step="0.1" id="azimuth1" name="azimuth1"><br>
-
-        <label for="lat1">Latitude (WGS84):</label><br>
-        <input type="text" id="lat1" name="lat1"><br>
-
-        <label for="lon1">Longitude (WGS84):</label><br>
-        <input type="text" id="lon1" name="lon1"><br><br>
-      </div>
-    </div>
-    <button type="button" onclick="addModule()">Add Another Module</button><br><br>
+  <h2>Enter Parameters</h2>
+  <form action="/get" method="GET">
+    Latitude: <input type="number" name="lat" step="any" required><br>
+    Longitude: <input type="number" name="lon" step="any" required><br>
+    Year: <input type="number" name="year" min="1900" max="2099"><br>
+    Peak Power (kW): <input type="number" name="peakpower" step="any" min="0" required><br>
+    Loss (%): <input type="number" name="loss" step="any" min="0" max="100" required><br>
+    PV Tech Choice: <select name="pvtechchoice">
+      <option value="crystSi">crystSi</option>
+      <option value="CIS">CIS</option>
+      <option value="CdTe">CdTe</option>
+      <option value="Unknown">Unknown</option>
+    </select><br>
+    Mounting Place: <select name="mountingplace">
+      <option value="free">Free</option>
+      <option value="building">Building</option>
+    </select><br>
+    Angle (degrees): <input type="number" name="angle" step="any" min="0" max="90"><br>
+    Aspect (degrees): <input type="number" name="aspect" step="any" min="-180" max="180"><br>
+    Age (years): <input type="number" name="age" min="0" required><br>
     <input type="submit" value="Submit">
   </form>
-
-  <button onclick="deleteData()">Delete Modules and WiFi Credentials</button>
-  <hr>
-
-
-  <h2> EMail Parameters</h2>
-  <form action="/addEmailParams" method="post">
-    <div id="emailContainer">
-      <div id="emailParams">
-        <label for="SMTPserver">SMTP Server:</label><br>
-        <input type="text" id="SMTPserver" name="SMTPserver"><br>
-        <label for="SMTPuser">SMTP Username:</label><br>
-        <input type="text" id="SMTPuser" name="SMTPuser"><br>
-        <label for="SMTPpass">SMTP Password:</label><br>
-        <input type="text" id="SMTPpass" name="SMTPpass"><br>
-        <label for="SMTPportTLS">SMTP Port (TLS):</label><br>
-        <input type="number" id="SMTPportTLS" name="SMTPportTLS"><br>
-        <label for="SMTPportSSL">SMTP Port (SSL):</label><br>
-        <input type="number" id="SMTPportSSL" name="SMTPportSSL"><br>
-        <label for="TLSSSL">TSL / SSL required:</label><br>
-        <input type="checkbox" id="TLSSSL" name="TLSSSL"><br><br>
-        <label for="receiverMAIL">receiver EMail:</label><br>
-        <input type="text" id="receiverMAIL" name="receiverMAIL"><br><br>
-      </div>
-    </div>
-    <input type="submit" value="Submit">
+  <h2>Saved Parameters</h2>
+  <div id="savedParams">%SAVEDPARAMS%</div>
+  <br>
+  <button onclick="location.href='/delete'">Delete All Parameters</button>
+  <br>
+  <button onclick="location.href='/downloadFile'">Download CSV vom PV GIS</button>
+  <h2>Upload File</h2>
+  <form method="POST" action="/upload" enctype="multipart/form-data">
+    <input type="file" name="file">
+    <input type="submit" value="Upload">
   </form>
-  <h2>Saved Email Params</h2>
-  <div id="savedEmailParamsContainer"></div>
-  <hr>
-
-
-  <h2>Saved Modules</h2>
-  <div id="savedModulesContainer"></div>
+  <p><a href="/">Back to Home</a></p>
 </body>
 </html>

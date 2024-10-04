@@ -10,7 +10,6 @@
 #include <HTTPClient.h>
 #include "helperFunctions.h"
 #include "csvFunctions.h"
-#include "Sensor.h"
 // #include "email.h"
 
 // Network credentials for Access Point
@@ -25,20 +24,6 @@ String password = "";
 const char* ssidPath = "/ssid.txt";
 const char* passwordPath = "/password.txt";
 
-// File to store parameters
-extern const char* parameterFile;
-
-
-// Declare the variables as extern so that they can be used here
-extern double lat, lon, peakpower, loss, angle;
-extern int year, aspect, age;
-extern String pvtechchoice, mountingplace;
-
-extern TaskHandle_t sensorTaskHandle;
-extern std::list<Sensor *> *sensors;
-
-
-
 // Create an instance of the server
 AsyncWebServer credentialsServer(80);
 AsyncWebServer server(80);
@@ -46,7 +31,6 @@ AsyncWebServer server(80);
 TaskHandle_t webServerTaskHandle = NULL;
 TaskHandle_t credentialsTaskHandle = NULL;
 TaskHandle_t smtpTaskHandle = NULL;
-TaskHandle_t downloadFileHandle = NULL;
 
 TimerHandle_t timerHandleStopWebserver = NULL;
 
@@ -68,22 +52,6 @@ typedef struct {
 void webServerTask(void * parameter);
 void credentialsTask(void * parameter);
 void smtpTask(void * parameter);
-
-void downloadFileToLittleFS(const String &filepath, const String &url);
-String readParameters();
-void saveParameters(AsyncWebServerRequest *request);
-void deleteParameters();
-String readHTMLFile();
-
-// Forward declare the function to read parameters
-bool readParametersFromFile(const char* path);
-String buildURL(const String& tool_name);
-
-void startDownloadTask(const String &filepath, const String &url);
-void downloadTask(void *parameter);
-
-extern float* PVData;
-
 
 void setEmailParams(String newSmtpServer, 
                     String newSmtpUser, 
@@ -167,80 +135,196 @@ bool connectToWiFi(const char* ssid, const char* password) {
 }
 
 
-void startWebServer(const char* htmlPage, const bool connected) {
-  // server.on("/", HTTP_GET, [htmlPage](AsyncWebServerRequest *request) {
-  //   request->send(LittleFS, htmlPage, "text/html");
-  // });
-
-  // Serve HTML form
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String savedParams = readParameters();
-    String htmlContent = readHTMLFile();
-    htmlContent.replace("%SAVEDPARAMS%", savedParams);
-    request->send(200, "text/html", htmlContent);
+void startWebServer(const char* indexPage, const bool connected) {
+  server.on("/", HTTP_GET, [indexPage](AsyncWebServerRequest *request) {
+    request->send(LittleFS, indexPage, "text/html");
   });
 
-   // Route to load style.css file
-  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(LittleFS, "/style.css", "text/css");
+  server.on("/add", HTTP_POST, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    if (LittleFS.exists("/modules.json")) {
+      Serial.println("Modules.json exists; reading content");
+      File file = LittleFS.open("/modules.json", "w+");
+      deserializeJson(doc, file);
+      file.close();
+    }
+    else {
+      LittleFS.mkdir("/modules.json");
+    }
+
+    JsonArray modules = doc["modules"].as<JsonArray>();
+    if (modules.isNull()) {
+      modules = doc.createNestedArray("modules");
+    }
+
+    for (int i = 1; ; i++) {
+      String nameParam = "name" + String(i);
+      String maxPowerParam = "maxPower" + String(i);
+      String angleParam = "angle" + String(i);
+      String systemlossParam = "systemloss" + String(i);
+      String slopeParam = "slope" + String(i);
+      String azimuthParam = "azimuth" + String(i);
+      String latParam = "lat" + String(i);
+      String lonParam = "lon" + String(i);
+
+      if (!request->hasParam(nameParam, true)) {
+        break;
+      }
+
+      JsonObject module = modules.add<JsonObject>();
+      if (request->hasParam(nameParam, true))
+        module["name"] = request->getParam(nameParam, true)->value();
+      if (request->hasParam(maxPowerParam, true))
+        module["maxPower"] = request->getParam(maxPowerParam, true)->value().toFloat();
+      if (request->hasParam(systemlossParam, true))
+        module["systemloss"] = request->getParam(systemlossParam, true)->value().toInt();
+      if (request->hasParam(slopeParam, true))
+        module["slope"] = request->getParam(slopeParam, true)->value().toFloat();
+      if (request->hasParam(azimuthParam, true))
+        module["azimuth"] = request->getParam(azimuthParam, true)->value().toFloat();
+      if (request->hasParam(latParam, true))
+        module["lat"] = request->getParam(latParam, true)->value();
+      if (request->hasParam(lonParam, true))
+        module["lon"] = request->getParam(lonParam, true)->value();
+    }
+
+    Serial.println(modules);
+
+    File file = LittleFS.open("/modules.json", FILE_WRITE);
+    serializeJson(modules, file);
+    file.close();
+    printSavedModules();
+
+    request->send(200, "text/plain", "Module data saved");
   });
 
-  // Handle form submission and save parameters
-  server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.println("Saving parameters");
-    saveParameters(request);
-    request->redirect("/");
-    readParametersFromFile(parameterFile);
+  // Route to handle Email Parameters
+  server.on("/addEmailParams", HTTP_POST, [](AsyncWebServerRequest *request) {
+    
+    String serverParam = "SMTPserver";
+    String userParam = "SMTPuser";
+    String passParam = "SMTPpass";
+    String tlsPortParam = "SMTPportTLS";
+    String sslPortParam = "SMTPportSSL";
+    String TLSSSLParam = "TLSSSL";
+    String receiverMailParam = "receiverMAIL";
+
+    //JsonObject email = emails.createNestedObject();
+    JsonDocument email;
+    if (request->hasParam(serverParam, true))
+      email["SMTPServer"] = request->getParam(serverParam, true)->value();
+    if (request->hasParam(userParam, true))
+      email["SMTPUser"] = request->getParam(userParam, true)->value();
+    if (request->hasParam(passParam, true))
+      email["SMTPPass"] = request->getParam(passParam, true)->value();
+    if (request->hasParam(tlsPortParam, true))
+      email["TLSPort"] = request->getParam(tlsPortParam, true)->value().toInt();
+    if (request->hasParam(sslPortParam, true))
+      email["SSLPort"] = request->getParam(sslPortParam, true)->value().toInt();
+    if (request->hasParam(TLSSSLParam, true))
+      email["TLSSSL"] = true;
+    else
+      email["TLSSSL"] = false;
+    if (request->hasParam(receiverMailParam, true))
+      email["receiverMail"] = request->getParam(receiverMailParam, true)->value();
+
+    //LittleFS.remove("/email.json");
+    
+    File file = LittleFS.open("/email.json", FILE_WRITE);
+    if (!file) {
+      Serial.println("Failed to open file for writing");
+      return;
+    }
+    serializeJson(email, file);
+    file.close();
+    Serial.println("Parameters saved to /params.json");
+    request->send(200, "text/plain", "Email params saved");
+
+    setEmailParams(email["SMTPServer"], email["SMTPUser"],email["SMTPPass"], email["TLSPort"], email["SSLPort"], email["TLSSSL"], email["receiverMail"]);
+    printEmailParams();
   });
 
-  // Handle delete button
+
+  // Route to get the saved modules
+  server.on("/modules", HTTP_GET, [](AsyncWebServerRequest *request) {
+    File file = LittleFS.open("/modules.json", FILE_READ);
+    String json;
+    if (file) {
+      json = file.readString();
+      file.close();
+    } else {
+      json = "{\"modules\":[]}";
+    }
+    request->send(200, "application/json", json);
+    //Serial.println(json);
+  });
+
+  server.on("/getEmailParams", HTTP_GET, [](AsyncWebServerRequest *request) {
+    File file = LittleFS.open("/email.json", FILE_READ);
+    String json;
+    if (file) {
+      json = file.readString();
+      file.close();
+    } else {
+      json = "{\"email\":[]}";
+    }
+    request->send(200, "application/json", json);
+    Serial.println(json);
+  });
+
+  // Route to delete a module
   server.on("/delete", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.println("deleting all parameters");
-    deleteParameters();
-    request->redirect("/");
-  });
-
-  // Handle test function call
-  server.on("/downloadFile", HTTP_GET, [](AsyncWebServerRequest *request) {
-        Serial.println("Calling downloadFile function");
-        String downloadURL = buildURL("seriescalc");
-        Serial.println(downloadURL);
-        
-        // Start the download task
-        startDownloadTask("/hourly_data.csv", downloadURL);
-
-        // Respond immediately to the client
-        request->send(200, "text/plain", "Download started.");
-    });
-
-  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {},
-    [](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
-      if (!index) {
-        Serial.printf("UploadStart: %s\n", filename.c_str());
-        // Open file for writing (create if it doesn't exist)
-        File file = LittleFS.open("/hourlyData.csv", FILE_WRITE);
-        if (!file) {
-          Serial.println("Failed to open file for writing");
-          return;
-        }
+    if (request->hasParam("index")) {
+      int index = request->getParam("index")->value().toInt();
+      JsonDocument doc;
+      if (LittleFS.exists("/modules.json")) {
+        File file = LittleFS.open("/modules.json", FILE_READ);
+        deserializeJson(doc, file);
         file.close();
       }
 
-      // Open file in append mode and write to it
-      File file = LittleFS.open("/hourlyData.csv", FILE_APPEND);
-      if (file) {
-        if (file.write(data, len) != len) {
-          Serial.println("Failed to write file");
-        }
-        file.close();
-      }
+      JsonArray modules = doc["modules"].as<JsonArray>();
+      if (!modules.isNull() && index >= 0 && index < modules.size()) {
+        modules.remove(index);
 
-      if (final) {
-        Serial.printf("UploadEnd: %s, %u B\n", filename.c_str(), index + len);
-        request->send(200, "text/plain", "File Uploaded Successfully!");
+        File file = LittleFS.open("/modules.json", FILE_WRITE);
+        serializeJson(doc, file);
+        file.close();
+
+        request->send(200, "text/plain", "Module deleted");
+      } else {
+        request->send(400, "text/plain", "Invalid module index");
       }
+    } else {
+      request->send(400, "text/plain", "Index parameter missing");
+    }
   });
 
+  server.on("/deleteAll", HTTP_POST, [](AsyncWebServerRequest *request){
+    bool modulesDeleted;
+    bool emailDeleted;
+    bool wifiSSIDDeleted;
+    bool wifiPASSDeleted;
+
+    if( LittleFS.exists("/modules.json"))
+      modulesDeleted = LittleFS.remove("/modules.json");
+      modulesDeleted = !modulesDeleted;
+
+    if( LittleFS.exists("/email.json"))
+      emailDeleted = LittleFS.remove("/email.json");
+
+    if( LittleFS.exists("/ssid.txt"))
+      wifiSSIDDeleted = LittleFS.remove("/ssid.txt");
+
+    if( LittleFS.exists("/password.txt"))
+      wifiPASSDeleted = LittleFS.remove("/password.txt");
+
+    char msgOut[1024]; 
+    snprintf(msgOut, sizeof(msgOut), "Modules deleted: %s", modulesDeleted?"true":"false");
+    //String sendText = "Modules deleted" + modulesDeleted + "\n" + "EMail Params deleted:" + emailDeleted + "\n" + "WiFi SSID deleted:" + wifiSSIDDeleted + "\n" + "WiFI Password deleted:" + wifiPASSDeleted + "\n";
+    request->send(200, "text/plain", msgOut);
+  });
+  
   server.begin();
   Serial.println("HTTP server started");
 }
@@ -250,19 +334,6 @@ void timerCallback(TimerHandle_t xTimer) {
     if (webServerTaskHandle != NULL) {
         vTaskDelete(webServerTaskHandle);
         webServerTaskHandle = NULL; // Clean up the handle
-
-        Serial.println("Starting Sensor Task...");
-        //starting Sensor Task
-        xTaskCreate([](void*) {
-          for(;;) {
-          // Allow the task to run indefinitely
-            for (std::list<Sensor*>::iterator it = sensors->begin(); it != sensors->end(); ++it)
-            {
-              (*it)->loop();
-            }
-            
-          }
-        }, "SensorTask", 20000, NULL, 1, &sensorTaskHandle);
         return;
     }
     Serial.println("WebServer task not started or already killed. Doing nothing...");
@@ -309,29 +380,6 @@ void webServerTask(void * parameter) {
     delay(10);
     //Serial.println(WiFi.status());
   }
-}
-
-void startDownloadTask(const String &filepath, const String &url) {
-    String *params = new String[2];
-    params[0] = filepath;
-    params[1] = url;
-
-    // Create a new task to handle the file download
-    xTaskCreate(downloadTask, "DownloadTask", 8192, params, 1, NULL);
-}
-
-void downloadTask(void *parameter) {
-    String *params = static_cast<String *>(parameter);
-    String filepath = params[0];
-    String url = params[1];
-
-    downloadFileToLittleFS(filepath, url);
-    listLittleFSFiles();
-
-
-    // Delete parameters after use
-    delete[] params; 
-    vTaskDelete(NULL);  // End the task
 }
 
 
@@ -428,88 +476,6 @@ void credentialsTask(void * parameter){
     // Allow the task to run indefinitely
     delay(10);
   }
-}
-
-// Function to read parameters from JSON file
-String readParameters() {
-  if (!LittleFS.exists(parameterFile)) {
-    return "No parameters saved yet.";
-  }
-
-  File file = LittleFS.open(parameterFile, "r");
-  if (!file) {
-    return "Failed to read the file.";
-  }
-
-  // Parse the JSON file
-  StaticJsonDocument<1024> jsonDoc;
-  DeserializationError error = deserializeJson(jsonDoc, file);
-  file.close();
-
-  if (error) {
-    return "Failed to parse the file.";
-  }
-
-  // Convert JSON to readable format
-  String params;
-  params += "Latitude: " + String((const char*)jsonDoc["lat"]) + "<br>";
-  params += "Longitude: " + String((const char*)jsonDoc["lon"]) + "<br>";
-  params += "Year: " + String((const char*)jsonDoc["year"]) + "<br>";
-  params += "Peak Power: " + String((const char*)jsonDoc["peakpower"]) + "<br>";
-  params += "Loss: " + String((const char*)jsonDoc["loss"]) + "<br>";
-  params += "PV Tech Choice: " + String((const char*)jsonDoc["pvtechchoice"]) + "<br>";
-  params += "Mounting Place: " + String((const char*)jsonDoc["mountingplace"]) + "<br>";
-  params += "Fixed: " + String((const char*)jsonDoc["fixed"]) + "<br>";
-  params += "Angle: " + String((const char*)jsonDoc["angle"]) + "<br>";
-  params += "Aspect: " + String((const char*)jsonDoc["aspect"]) + "<br>";
-  params += "Age: " + String((const char*)jsonDoc["age"]) + "<br>";
-  
-  return params;
-}
-
-// Function to save parameters to JSON file
-void saveParameters(AsyncWebServerRequest *request) {
-  // Create a JSON document to hold the parameters
-  StaticJsonDocument<1024> jsonDoc;
-
-  if (request->hasParam("lat")) jsonDoc["lat"] = request->getParam("lat")->value();
-  if (request->hasParam("lon")) jsonDoc["lon"] = request->getParam("lon")->value();
-  if (request->hasParam("year")) jsonDoc["year"] = request->getParam("year")->value();
-  if (request->hasParam("peakpower")) jsonDoc["peakpower"] = request->getParam("peakpower")->value();
-  if (request->hasParam("loss")) jsonDoc["loss"] = request->getParam("loss")->value();
-  if (request->hasParam("pvtechchoice")) jsonDoc["pvtechchoice"] = request->getParam("pvtechchoice")->value();
-  if (request->hasParam("mountingplace")) jsonDoc["mountingplace"] = request->getParam("mountingplace")->value();
-  if (request->hasParam("fixed")) jsonDoc["fixed"] = request->getParam("fixed")->value();
-  if (request->hasParam("angle")) jsonDoc["angle"] = request->getParam("angle")->value();
-  if (request->hasParam("aspect")) jsonDoc["aspect"] = request->getParam("aspect")->value();
-  if (request->hasParam("age")) jsonDoc["age"] = request->getParam("age")->value();
-
-  // Save JSON to file
-  File file = LittleFS.open(parameterFile, "w");
-  if (file) {
-    serializeJson(jsonDoc, file);
-    file.close();
-    Serial.println("Saving JSON with parameters");
-  } else {
-    Serial.println("Failed to open the file for writing.");
-  }
-}
-
-// Function to delete parameters (delete the JSON file)
-void deleteParameters() {
-  LittleFS.remove(parameterFile);
-}
-
-String readHTMLFile() {
-  String htmlContent;
-  File file = LittleFS.open("/index2.html", "r");
-  if (file) {
-    while (file.available()) {
-      htmlContent += file.readString();
-    }
-    file.close();
-  }
-  return htmlContent;
 }
 
 void downloadFileToLittleFS(const String &filepath, const String &url) {
@@ -642,92 +608,6 @@ void smtpTask(void * parameter) {
 
   // Delete the task after email is sent
   vTaskDelete(NULL);
-}
-
-// Function to build the URL
-String buildURL(const String& tool_name) {
-    String url = "https://re.jrc.ec.europa.eu/api/v5_3/" + tool_name + "?";
-
-    bool firstParam = true;  // To manage the first parameter addition
-
-    // Helper function to append parameters to the URL
-    auto appendParam = [&](const String& key, const String& value) {
-        if (!value.isEmpty()) {
-            if (firstParam) {
-                url += key + "=" + value;
-                firstParam = false;  // No longer the first parameter
-            } else {
-                url += "&" + key + "=" + value;
-            }
-        }
-    };
-
-
-    // Extract parameters from JSON document and append them to the URL
-    appendParam("lat", String(lat));
-    appendParam("lon", String(lon));
-    appendParam("startyear", String(year)); // Use startyear
-    appendParam("endyear", String(year));   // Use endyear
-    appendParam("peakpower", String(peakpower));
-    appendParam("loss", String(loss));
-    appendParam("pvtechchoice", String(pvtechchoice));
-    appendParam("mountingplace", String(mountingplace));
-    appendParam("angle", String(angle));
-    appendParam("aspect", String(aspect));
-    appendParam("pvcalculation", String(1));
-
-    return url;  // Return the constructed URL
-}
-
-bool readParametersFromFile(const char* path) {
-  // Open the JSON file
-  File file = LittleFS.open(path, "r");
-  if (!file) {
-    Serial.println("Failed to open file");
-    return false;
-  }
-
-  // Determine the file size
-  size_t size = file.size();
-  if (size == 0) {
-    Serial.println("File is empty");
-    return false;
-  }
-
-  // Allocate a buffer to hold the file's content
-  std::unique_ptr<char[]> buf(new char[size]);
-
-  // Read the file into the buffer
-  file.readBytes(buf.get(), size);
-
-  // Parse the JSON
-  StaticJsonDocument<512> jsonDoc;
-  DeserializationError error = deserializeJson(jsonDoc, buf.get());
-
-  serializeJson(jsonDoc, Serial);
-  // Check for errors in parsing
-  if (error) {
-    Serial.print("Failed to parse JSON: ");
-    Serial.println(error.c_str());
-    return false;
-  }
-
-  // Extract the parameters and store them in variables
-  lat = jsonDoc["lat"];
-  lon = jsonDoc["lon"];
-  year = jsonDoc["year"];
-  peakpower = jsonDoc["peakpower"];
-  loss = jsonDoc["loss"];
-  pvtechchoice = jsonDoc["pvtechchoice"].as<String>();
-  mountingplace = jsonDoc["mountingplace"].as<String>();
-  angle = jsonDoc["angle"];
-  aspect = jsonDoc["aspect"];
-  age = jsonDoc["age"];
-
-  // Close the file
-  file.close();
-  
-  return true;
 }
 
 

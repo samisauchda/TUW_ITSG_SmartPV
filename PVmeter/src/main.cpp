@@ -22,6 +22,13 @@
 
 #define IR_RECV_D1 3
 
+// Declare global variables
+double lat, lon, peakpower, loss, angle;
+int year, aspect, age;
+String pvtechchoice, mountingplace;
+
+const char* parameterFile = "/params.json";
+
 double energyIn=0.0;
 double energyOut=0.0;
 double vzTestValue=0.0;
@@ -34,7 +41,12 @@ float* SensorMaxPower = NULL; // Pointer to array for max Power datat from senso
 std::list<Sensor *> *sensors = new std::list<Sensor *>();
 TaskHandle_t sensorTaskHandle = NULL;
 
+// Required size for the array
+size_t arraySize = 8760; // Number of elements
+  
 
+float* PVData = allocateFloatArray(arraySize);
+float* SensorMaxPower = allocateFloatArray(arraySize);
 
 
 
@@ -132,6 +144,7 @@ void setup() {
   sleep(5);
   // Initialize Serial Monitor
   Serial.begin(115200);
+  esp_log_level_set("*", ESP_LOG_VERBOSE);
 
   while(!Serial){}
 
@@ -157,7 +170,7 @@ void setup() {
   // Create the timer
   timerHandleStopWebserver = xTimerCreate(
       "Task Timer",            // Timer name (for debugging)
-      pdMS_TO_TICKS(30000),    // Timer period in ticks (20 seconds)
+      pdMS_TO_TICKS(120000),    // Timer period in ticks (20 seconds)
       pdFALSE,                 // One-shot timer (pdFALSE)
       (void *)0,               // Timer ID (not used)
       timerCallback            // Callback function
@@ -210,50 +223,48 @@ void setup() {
 
 
 
-  const char* fileURL = "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=48.212&lon=16.378&startyear=2016&endyear=2016pvcalculation=1&peakpower=1&mountingplace=building&loss=1&optimalangles=1&optimalinclination=1&outputformat=csv&browser=1";
-  const char* filename = "/newData.csv";    // File to save in SPIFFS
+  const char* fileURL = "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=48.212&lon=16.378&startyear=2017&endyear=2017&pvcalculation=1&peakpower=1&mountingplace=building&loss=1&optimalangles=1&optimalinclination=1&outputformat=csv";
+  const char* filename = "/newFile.csv";    // File to save in SPIFFS
+  const char* markDataBegin = "time,P";
+  const int csvColumn = 1;
 
-  listLittleFSFiles();
+  //listLittleFSFiles();
   // Download the file
-  if (downloadAndSaveFile(fileURL, filename)) {
-    Serial.println("Datei erfolgreich heruntergeladen und gespeichert");
-  } else {
-    Serial.println("Fehler beim Download oder Speichern");
-  }
-  listLittleFSFiles();
-  // // Array to store timestamps
-  // String timeArray[maxRows];
 
-  // 2D array to store numerical CSV data
-  // Required size for the array
-  size_t arraySize = 8760; // Number of elements
-  
-  float* PVData = allocateFloatArray(arraySize);
-  float* SensorMaxPower = allocateFloatArray(arraySize);
+  //downloadFileToLittleFS(filename, fileURL);
+
+  listLittleFSFiles();
+
+  if (!readParametersFromFile(parameterFile)) {
+    Serial.println("Failed to read parameters from file");
+  } else {
+    // Print the parameters to confirm they were read successfully
+    Serial.println("Parameters loaded successfully:");
+    Serial.println("Latitude: " + String(lat));
+    Serial.println("Longitude: " + String(lon));
+    Serial.println("Year: " + String(year));
+    Serial.println("Peak Power: " + String(peakpower));
+    Serial.println("Loss: " + String(loss));
+    Serial.println("PV Tech Choice: " + pvtechchoice);
+    Serial.println("Mounting Place: " + mountingplace);
+    Serial.println("Angle: " + String(angle));
+    Serial.println("Aspect: " + String(aspect));
+    Serial.println("Age: " + String(age));
+  }
+
 
   // Call the function to read the CSV file
-  readCSVtoArray("/new_data.csv", PVData, arraySize);
+  readCSVtoArray("/newFile.csv", PVData, arraySize, markDataBegin, csvColumn);
   
 
-  // Print CSV data from arrays (for debugging)
+  //Print CSV data from arrays (for debugging)
   // for (int i = 0; i < arraySize; i++) {
   //   // Serial.print(timeArray[i]);
   //   Serial.print("\t");
   //   Serial.println(PVData[i]);
   // }
   //init and start sensor Task, run forever
-  xTaskCreate([](void*) {
-    
-
-    for(;;) {
-    // Allow the task to run indefinitely
-      for (std::list<Sensor*>::iterator it = sensors->begin(); it != sensors->end(); ++it)
-      {
-        (*it)->loop();
-      }
-      
-    }
-   }, "SensorTask", 20000, NULL, 1, &sensorTaskHandle);
+  
 }
 
 int analogValue = 0;

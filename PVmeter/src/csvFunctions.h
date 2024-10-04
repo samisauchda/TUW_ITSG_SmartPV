@@ -1,7 +1,6 @@
 #ifndef CSV_H_
 #define CSV_H_
 
-
 #include <esp_LittleFS.h>
 #include <Arduino.h>
 #include <list>
@@ -9,16 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <LittleFS.h>
-
-
-
-
+#include <HTTPClient.h>
 
 void readCSVtoArray(const char* filePath, float dataArray[], int maxRows);
 float* allocateFloatArray(size_t arraySize);
 
 // Function to read a CSV file and store it in arrays (only first two columns)
-void readCSVtoArray(const char* filePath, float dataArray[], int maxRows) {
+void readCSVtoArray(const char* filePath, float dataArray[], int maxRows, String dataStartMarker, int columnIndex) {
   // Initialize LittleFS
   if (!LittleFS.begin()) {
     Serial.println("An error has occurred while mounting LittleFS");
@@ -34,33 +30,64 @@ void readCSVtoArray(const char* filePath, float dataArray[], int maxRows) {
 
   String line = "";
   int rowIndex = 0;
+  bool dataStart = false;  // Flag to indicate when the actual data starts
 
   // Read each line from the file
   while (file.available() && rowIndex < maxRows) {
     line = file.readStringUntil('\n'); // Read a line
-    // Serial.println(line);  // Print line to Serial (optional for debugging)
 
-    // Extract timestamp (first column)
-    int firstCommaIndex = line.indexOf(',');
-    if (firstCommaIndex != -1) {
-      // timeArray[rowIndex] = line.substring(0, firstCommaIndex);  // Store the timestamp
+    // Check if the current line matches the start of the data
+    if (!dataStart) {
+      if (line.indexOf(dataStartMarker) != -1) {
+        dataStart = true;  // Data starts after this line
+      }
+      continue;  // Skip lines until we find the marker
+    }
 
-      // Extract the value from the second column
-      int secondCommaIndex = line.indexOf(',', firstCommaIndex + 1);
-      if (secondCommaIndex != -1) {
-        String secondValue = line.substring(firstCommaIndex + 1, secondCommaIndex);
-        dataArray[rowIndex] = secondValue.toFloat();  // Convert to float and store
+    // Split the line into columns based on commas
+    int commaIndex = -1;
+    int previousIndex = 0;
+    int columnCounter = 0;
+    String columnValue = "";
+    
+    while (columnCounter <= columnIndex) {
+      commaIndex = line.indexOf(',', previousIndex);
+      
+      // If it's the column we're interested in, extract the value
+      if (columnCounter == columnIndex) {
+        if (commaIndex == -1) {
+          // If no more commas are found, this is the last column
+          columnValue = line.substring(previousIndex);
+        } else {
+          columnValue = line.substring(previousIndex, commaIndex);
+        }
+        break;
+      }
+
+      // Move to the next column
+      previousIndex = commaIndex + 1;
+      columnCounter++;
+      
+      // If no more commas and we haven't reached the desired column, break
+      if (commaIndex == -1) {
+        break;
       }
     }
-    rowIndex++;
+
+    // Convert the extracted value to float and store it in the dataArray
+    if (columnValue.length() > 0) {
+      dataArray[rowIndex] = columnValue.toFloat();
+      rowIndex++;
+    }
   }
 
   file.close();
   
   // Print CSV data from arrays (for debugging)
   for (int i = 0; i < rowIndex; i++) {
-    // Serial.print(timeArray[i]);
-    Serial.print("\t");
+    Serial.print("Row ");
+    Serial.print(i);
+    Serial.print(": ");
     Serial.println(dataArray[i]);
   }
 }
@@ -92,43 +119,6 @@ float* allocateFloatArray(size_t arraySize) {
     return NULL;
   }
 }
-
-void modifyFile(const char* filepath) {
-  File file = LittleFS.open(filepath, FILE_READ);
-  if (!file) {
-    Serial.println("Failed to open file for reading");
-    return;
-  }
-
-  // Read the file line by line and ignore header lines (modify this based on your file format)
-  String line;
-  bool dataStart = false;
-  String modifiedData = "";
-
-  while (file.available()) {
-    line = file.readStringUntil('\n');
-    if (line.startsWith("Year")) { // Assuming 'Year' marks the start of data
-      dataStart = true;
-    }
-    if (dataStart) {
-      modifiedData += line + "\n";
-    }
-  }
-  file.close();
-
-  // Save modified data back to file
-  file = LittleFS.open(filepath, FILE_WRITE);
-  if (!file) {
-    Serial.println("Failed to open file for writing");
-    return;
-  }
-  file.print(modifiedData);
-  file.close();
-
-  Serial.println("File modified successfully");
-}
-
-
 
 
 #endif

@@ -1,38 +1,47 @@
-html {
-    font-family: Arial, Helvetica, sans-serif; 
-    display: inline-block; 
-    text-align: center;
-  }
-  h1 {
-    font-size: 1.8rem; 
-    color: white;
-  }
-  p { 
-    font-size: 1.4rem;
-  }
-  .topnav { 
-    overflow: hidden; 
-    background-color: #0A1128;
-  }
-  body {  
+
+body {
+    font-family: Arial, sans-serif;
     margin: 0;
-  }
-  .content { 
-    padding: 5%;
-  }
-  .card-grid { 
-    max-width: 1200px; 
-    margin: 0 auto; 
-    display: grid; 
-    grid-gap: 2rem; 
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-  .card { 
-    background-color: white; 
-    box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);
-  }
-  .card-title { 
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: #034078
-  }
+    padding: 0;
+    background-color: #f4f4f4;
+}
+
+h2 {
+    color: #333;
+}
+
+form {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+input[type="number"], input[type="submit"], select, button {
+    width: calc(100% - 22px);
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+input[type="submit"], button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+input[type="submit"]:hover, button:hover {
+    background-color: #45a049;
+}
+
+#savedParams {
+    background-color: #e7f3fe;
+    border-left: 6px solid #2196F3;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 4px;
+}

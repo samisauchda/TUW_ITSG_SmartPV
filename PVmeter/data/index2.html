@@ -1,44 +1,121 @@
 <!DOCTYPE HTML>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Parameter Entry</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" type="text/css" href="style.css"> <!-- Link to the CSS file -->
 </head>
 <body>
-  <h2>Enter Parameters</h2>
+  <h2>Parameter Entry</h2>
+
+  <!-- Parameters Form -->
   <form action="/get" method="GET">
-    Latitude: <input type="number" name="lat" step="any" required><br>
-    Longitude: <input type="number" name="lon" step="any" required><br>
-    Year: <input type="number" name="year" min="1900" max="2099"><br>
-    Peak Power (kW): <input type="number" name="peakpower" step="any" min="0" required><br>
-    Loss (%): <input type="number" name="loss" step="any" min="0" max="100" required><br>
-    PV Tech Choice: <select name="pvtechchoice">
+    <label for="lat">Latitude:</label>
+    <input type="number" id="lat" name="lat" step="any" required>
+
+    <label for="lon">Longitude:</label>
+    <input type="number" id="lon" name="lon" step="any" required>
+
+    <label for="year">Year:</label>
+    <input type="number" id="year" name="year" min="1900" max="2099">
+
+    <label for="peakpower">Peak Power (kW):</label>
+    <input type="number" id="peakpower" name="peakpower" step="any" min="0" required>
+
+    <label for="loss">Loss (%):</label>
+    <input type="number" id="loss" name="loss" step="any" min="0" max="100" required>
+
+    <label for="pvtechchoice">PV Tech Choice:</label>
+    <select id="pvtechchoice" name="pvtechchoice">
       <option value="crystSi">crystSi</option>
       <option value="CIS">CIS</option>
       <option value="CdTe">CdTe</option>
       <option value="Unknown">Unknown</option>
-    </select><br>
-    Mounting Place: <select name="mountingplace">
+    </select>
+
+    <label for="mountingplace">Mounting Place:</label>
+    <select id="mountingplace" name="mountingplace">
       <option value="free">Free</option>
       <option value="building">Building</option>
-    </select><br>
-    Angle (degrees): <input type="number" name="angle" step="any" min="0" max="90"><br>
-    Aspect (degrees): <input type="number" name="aspect" step="any" min="-180" max="180"><br>
-    Age (years): <input type="number" name="age" min="0" required><br>
+    </select>
+
+    <label for="angle">Angle (degrees):</label>
+    <input type="number" id="angle" name="angle" step="any" min="0" max="90">
+
+    <label for="aspect">Aspect (degrees):</label>
+    <input type="number" id="aspect" name="aspect" step="any" min="-180" max="180">
+
+    <label for="age">Age (years):</label>
+    <input type="number" id="age" name="age" min="0" required>
+
     <input type="submit" value="Submit">
   </form>
+
+  <!-- Saved Parameters Section -->
   <h2>Saved Parameters</h2>
   <div id="savedParams">%SAVEDPARAMS%</div>
-  <br>
   <button onclick="location.href='/delete'">Delete All Parameters</button>
-  <br>
   <button onclick="location.href='/downloadFile'">Download CSV vom PV GIS</button>
+
+  <!-- File Upload Section -->
   <h2>Upload File</h2>
   <form method="POST" action="/upload" enctype="multipart/form-data">
-    <input type="file" name="file">
+    <input type="file" name="file" required>
     <input type="submit" value="Upload">
   </form>
+
+  <!-- Email Credentials Section -->
+  <h2>Enter Email Credentials</h2>
+  <form action="/saveEmail" method="POST">
+    <label for="smtpServer">SMTP Server:</label>
+    <input type="text" id="smtpServer" name="smtpServer" required>
+
+    <label for="smtpUser">SMTP User:</label>
+    <input type="text" id="smtpUser" name="smtpUser" required>
+
+    <label for="smtpPass">SMTP Password:</label>
+    <input type="password" id="smtpPass" name="smtpPass" required>
+
+    <label for="smtpPortTLS">SMTP Port (TLS):</label>
+    <input type="number" id="smtpPortTLS" name="smtpPortTLS" min="0">
+
+    <label for="smtpPortSSL">SMTP Port (SSL):</label>
+    <input type="number" id="smtpPortSSL" name="smtpPortSSL" min="0">
+
+    <label for="smtpSecurity">SMTP Security:</label>
+    <select id="smtpSecurity" name="smtpSecurity">
+      <option value="TLS">TLS</option>
+      <option value="SSL">SSL</option>
+    </select>
+
+    <label for="receiverMail">Receiver Email Address:</label>
+    <input type="email" id="receiverMail" name="receiverMail" required>
+
+    <input type="submit" value="Save Email Credentials">
+  </form>
+
+  <h3>Saved Email Credentials</h3>
+  <div id="savedEmail">%SAVEDEMAIL%</div>
+  <button onclick="location.href='/deleteEmail'">Delete Email Credentials</button>
+
+  <!-- Wi-Fi Credentials Section -->
+  <h2>Enter Wi-Fi Credentials</h2>
+  <form action="/saveWifi" method="POST">
+    <label for="ssid">Wi-Fi SSID:</label>
+    <input type="text" id="ssid" name="ssid" required>
+
+    <label for="password">Wi-Fi Password:</label>
+    <input type="password" id="password" name="password" required>
+
+    <input type="submit" value="Save Wi-Fi Credentials">
+  </form>
+
+  <h3>Saved Wi-Fi Credentials</h3>
+  <div id="savedWifi">%SAVEDWIFI%</div>
+  <button onclick="location.href='/deleteWifi'">Delete Wi-Fi Credentials</button>
+  <button onclick="location.href='/connectWifi'">Connect to Wi-Fi</button>
+
   <p><a href="/">Back to Home</a></p>
 </body>
 </html>

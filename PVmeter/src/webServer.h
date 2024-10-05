@@ -12,6 +12,7 @@
 #include "csvFunctions.h"
 #include "Sensor.h"
 // #include "email.h"
+#include <DNSServer.h>
 
 // Network credentials for Access Point
 const char* ssidAP = "ESP32-Access-Point";
@@ -22,8 +23,8 @@ String ssid = "";
 String password = "";
 
 // File paths to save credentials
-const char* ssidPath = "/ssid.txt";
-const char* passwordPath = "/password.txt";
+// const char* ssidPath = "/ssid.txt";
+// const char* passwordPath = "/password.txt";
 
 // File to store parameters
 extern const char* parameterFile;
@@ -42,6 +43,11 @@ extern std::list<Sensor *> *sensors;
 // Create an instance of the server
 AsyncWebServer credentialsServer(80);
 AsyncWebServer server(80);
+// DNSServer dnsServer;
+
+// IP-Adresse des Captive Portals
+IPAddress apIP(192, 168, 4, 1);
+
 
 TaskHandle_t webServerTaskHandle = NULL;
 TaskHandle_t credentialsTaskHandle = NULL;
@@ -50,13 +56,25 @@ TaskHandle_t downloadFileHandle = NULL;
 
 TimerHandle_t timerHandleStopWebserver = NULL;
 
-String smtpServer;
-String smtpUser;
-String smtpPass;
-int smtpPortTLS;
-int smtpPortSSL;
-bool smtpTLSSSL;
-String receiverMail;
+
+// Paths for storing the Wi-Fi and email credentials
+extern const char* wifiCredentialsPath;
+extern const char* emailCredentialsPath;
+
+// Structure to store email credentials
+struct EmailCredentials {
+  String smtpServer;
+  String smtpUser;
+  String smtpPass;
+  int smtpPortTLS;
+  int smtpPortSSL;
+  String smtpSecurity;
+  String receiverMail;
+};
+// Initialize email credentials
+extern EmailCredentials emailCreds;
+
+
 
 SMTPSession smtp;
 Session_Config config;
@@ -69,11 +87,13 @@ void webServerTask(void * parameter);
 void credentialsTask(void * parameter);
 void smtpTask(void * parameter);
 
+bool connectToWiFi();
+
 void downloadFileToLittleFS(const String &filepath, const String &url);
 String readParameters();
 void saveParameters(AsyncWebServerRequest *request);
 void deleteParameters();
-String readHTMLFile();
+String readHTMLFile(const char * filePath);
 
 // Forward declare the function to read parameters
 bool readParametersFromFile(const char* path);
@@ -84,68 +104,40 @@ void downloadTask(void *parameter);
 
 extern float* PVData;
 
+void saveWiFiCredentials(String ssid, String password);
+void saveEmailCredentials(EmailCredentials creds);
+bool loadEmailCredentials();
+void deleteWiFiCredentials();
+void deleteEmailCredentials();
+String getSavedWiFiCredentials();
+String getSavedEmailCredentials(); 
 
-void setEmailParams(String newSmtpServer, 
-                    String newSmtpUser, 
-                    String newSmtpPass, 
-                    int newSmtpPortTLS, 
-                    int newSmtpPortSSL,
-                    bool newSmtpTLSSSL,
-                    String newreceiverMail) {
-    smtpServer = newSmtpServer;
-    smtpUser = newSmtpUser;
-    smtpPass = newSmtpPass;
-    smtpPortTLS = newSmtpPortTLS;
-    smtpPortSSL = newSmtpPortSSL;
-    smtpTLSSSL = newSmtpTLSSSL;
-    receiverMail = newreceiverMail;
-}
-
-// Read credentials from LittleFS
-bool readCredentials() {
-  if (LittleFS.exists(ssidPath)) {
-    File file = LittleFS.open(ssidPath, "r");
-    if (file) {
-      ssid = file.readStringUntil('\n');
-      ssid.trim();
-      file.close();
-    }
-  } else {
-    return false;
-  }
-
-  if (LittleFS.exists(passwordPath)) {
-    File file = LittleFS.open(passwordPath, "r");
-    if (file) {
-      password = file.readStringUntil('\n');
-      password.trim();
-      file.close();
-    }
-  } else {
-    return false;
-  }
-
-  return true;
-}
-
-// Save credentials to LittleFS
-void saveCredentials(const char* ssid, const char* password) {
-  File file = LittleFS.open(ssidPath, "w");
-  if (file) {
-    file.println(ssid);
-    file.close();
-  }
-
-  file = LittleFS.open(passwordPath, "w");
-  if (file) {
-    file.println(password);
-    file.close();
-  }
-}
 
 // Connect to Wi-Fi with provided credentials
-bool connectToWiFi(const char* ssid, const char* password) {
-  Serial.printf("Connecting to %s", ssid);
+bool connectToWiFi() {
+  // Optionally, stop any running access point mode
+  WiFi.softAPdisconnect(true); // Shut down the AP mode, if an
+
+  // First, disconnect from any previous Wi-Fi connections and stop any AP modes
+  WiFi.disconnect(true);  // Disconnect from current Wi-Fi network
+  WiFi.mode(WIFI_OFF);     // Turn off Wi-Fi to reset all states
+  delay(1000);             // Brief delay to ensure the Wi-Fi mode is stopped
+
+  Serial.printf("Reading WiFi credentials from %s \n", wifiCredentialsPath);
+  File wifiFile = LittleFS.open(wifiCredentialsPath, "r");
+  if (!wifiFile) {
+    Serial.println("No Wi-Fi credentials found!");
+    return false;
+  }
+  ssid = wifiFile.readStringUntil('\n');
+  ssid.trim();
+
+  password = wifiFile.readStringUntil('\n');
+  password.trim();
+
+  wifiFile.close();
+
+  Serial.printf("Connecting to %s...", ssid);
   WiFi.begin(ssid, password);
   unsigned long startAttemptTime = millis();
   
@@ -168,15 +160,15 @@ bool connectToWiFi(const char* ssid, const char* password) {
 
 
 void startWebServer(const char* htmlPage, const bool connected) {
-  // server.on("/", HTTP_GET, [htmlPage](AsyncWebServerRequest *request) {
-  //   request->send(LittleFS, htmlPage, "text/html");
-  // });
-
   // Serve HTML form
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     String savedParams = readParameters();
-    String htmlContent = readHTMLFile();
+    String savedWifi = getSavedWiFiCredentials();
+    String savedEmail = getSavedEmailCredentials();
+    String htmlContent = readHTMLFile("/index2.html");
     htmlContent.replace("%SAVEDPARAMS%", savedParams);
+    htmlContent.replace("%SAVEDWIFI%", savedWifi);
+    htmlContent.replace("%SAVEDEMAIL%", savedEmail);
     request->send(200, "text/html", htmlContent);
   });
 
@@ -241,6 +233,43 @@ void startWebServer(const char* htmlPage, const bool connected) {
       }
   });
 
+  credentialsServer.on("/saveWifi", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("ssid", true) && request->hasParam("password", true)) {
+      ssid = request->getParam("ssid", true)->value();
+      password = request->getParam("password", true)->value();
+      saveWiFiCredentials(ssid, password);
+      request->redirect("/");
+    }
+  });
+
+  // Save email credentials
+  credentialsServer.on("/saveEmail", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("smtpServer", true) && request->hasParam("smtpUser", true)
+        && request->hasParam("smtpPass", true) && request->hasParam("receiverMail", true)) {
+      emailCreds.smtpServer = request->getParam("smtpServer", true)->value();
+      emailCreds.smtpUser = request->getParam("smtpUser", true)->value();
+      emailCreds.smtpPass = request->getParam("smtpPass", true)->value();
+      emailCreds.smtpPortTLS = request->getParam("smtpPortTLS", true)->value().toInt();
+      emailCreds.smtpPortSSL = request->getParam("smtpPortSSL", true)->value().toInt();
+      emailCreds.smtpSecurity = request->getParam("smtpSecurity", true)->value();
+      emailCreds.receiverMail = request->getParam("receiverMail", true)->value();
+      saveEmailCredentials(emailCreds);
+      request->redirect("/");
+    }
+  });
+
+    // Delete Wi-Fi credentials
+  server.on("/deleteWifi", HTTP_GET, [](AsyncWebServerRequest *request){
+    deleteWiFiCredentials();
+    request->redirect("/");
+  });
+
+  // Delete email credentials
+  server.on("/deleteEmail", HTTP_GET, [](AsyncWebServerRequest *request){
+    deleteEmailCredentials();
+    request->redirect("/");
+  });
+
   server.begin();
   Serial.println("HTTP server started");
 }
@@ -271,7 +300,7 @@ void timerCallback(TimerHandle_t xTimer) {
 
 void webServerTask(void * parameter) {
   
-  if (ssid.length() > 0 && connectToWiFi(ssid.c_str(), password.c_str())) {
+  if (connectToWiFi()) {
     // If credentials are available and connection is successful, start the server with index2.html
     startWebServer("/index2.html", 1);
     delay(1000);
@@ -342,82 +371,80 @@ void credentialsTask(void * parameter){
   WiFi.softAP(ssidAP, passwordAP);
   Serial.println("Access Point started");
   Serial.print("IP Address: ");
-  Serial.println(WiFi.softAPIP());
+    // Setze die IP-Adresse des ESP32 im Access Point-Modus
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+
+  // Starte den DNS-Server und leite alle Anfragen auf die IP des ESP32 um
+  // dnsServer.start(53, "*", apIP);
 
   //startCredentialsServer("/index.html");
 
   credentialsServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/index.html", "text/html");
+    String savedWifi = getSavedWiFiCredentials();
+    String savedEmail = getSavedEmailCredentials();
+    String htmlContent = readHTMLFile("/index.html");
+    htmlContent.replace("%SAVEDWIFI%", savedWifi);
+    htmlContent.replace("%SAVEDEMAIL%", savedEmail);
+    request->send(200, "text/html", htmlContent);
   });
 
-  // handles for credential submission on AP mode
-  credentialsServer.on("/get", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("ssid") && request->hasParam("password")) {
-      ssid = request->getParam("ssid")->value();
-      password = request->getParam("password")->value();
-      saveCredentials(ssid.c_str(), password.c_str());
+  credentialsServer.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(LittleFS, "/style.css", "text/css");
+  });
 
-      String serverParam = "SMTPserver";
-      String userParam = "SMTPuser";
-      String passParam = "SMTPpass";
-      String tlsPortParam = "SMTPportTLS";
-      String sslPortParam = "SMTPportSSL";
-      String TLSSSLParam = "TLSSSL";
-      String receiverMailParam = "receiverMAIL";
-
-      //JsonObject email = emails.createNestedObject();
-      JsonDocument email;
-      if (request->hasParam(serverParam, true))
-        email["SMTPServer"] = request->getParam(serverParam, true)->value();
-      if (request->hasParam(userParam, true))
-        email["SMTPUser"] = request->getParam(userParam, true)->value();
-      if (request->hasParam(passParam, true))
-        email["SMTPPass"] = request->getParam(passParam, true)->value();
-      if (request->hasParam(tlsPortParam, true))
-        email["TLSPort"] = request->getParam(tlsPortParam, true)->value().toInt();
-      if (request->hasParam(sslPortParam, true))
-        email["SSLPort"] = request->getParam(sslPortParam, true)->value().toInt();
-      if (request->hasParam(TLSSSLParam, true))
-        email["TLSSSL"] = true;
-      else
-        email["TLSSSL"] = false;
-      if (request->hasParam(receiverMailParam, true))
-        email["receiverMail"] = request->getParam(receiverMailParam, true)->value();
-
-      //LittleFS.remove("/email.json");
-      
-      File file = LittleFS.open("/email.json", FILE_WRITE);
-      if (!file) {
-        Serial.println("Failed to open file for writing");
-        return;
-      }
-      serializeJson(email, file);
-      file.close();
-      Serial.println("Parameters saved to /email.json");
-      request->send(200, "text/plain", "Email params saved");
-
-      setEmailParams(email["SMTPServer"], email["SMTPUser"],email["SMTPPass"], email["TLSPort"], email["SSLPort"], email["TLSSSL"], email["receiverMail"]);
-      printEmailParams();
-
-      request->send(200, "text/html", "Credentials received, attempting to connect...");
-      credentialsServer.end();
-      delay(1000);
-      WiFi.softAPdisconnect(true);
-      Serial.println("deleting credentials Task...");
-      vTaskDelete(credentialsTaskHandle);
-      Serial.println("deleted credentials Task. Starting WebServer task");
-      xTaskCreate(
-        webServerTask,        // Function to implement the task
-        "WebServerTask",      // Name of the task
-        10000,                // Stack size in words
-        NULL,                 // Task input parameter
-        1,                    // Priority of the task
-        &webServerTaskHandle); // Task handle
-        Serial.println("WebServer Task Started.");
-      
-    } else {
-      request->send(200, "text/html", "Missing SSID or Password.");
+  credentialsServer.on("/saveWifi", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("ssid", true) && request->hasParam("password", true)) {
+      ssid = request->getParam("ssid", true)->value();
+      password = request->getParam("password", true)->value();
+      saveWiFiCredentials(ssid, password);
+      request->redirect("/");
     }
+  });
+
+  // Save email credentials
+  credentialsServer.on("/saveEmail", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("smtpServer", true) && request->hasParam("smtpUser", true)
+        && request->hasParam("smtpPass", true) && request->hasParam("receiverMail", true)) {
+      emailCreds.smtpServer = request->getParam("smtpServer", true)->value();
+      emailCreds.smtpUser = request->getParam("smtpUser", true)->value();
+      emailCreds.smtpPass = request->getParam("smtpPass", true)->value();
+      emailCreds.smtpPortTLS = request->getParam("smtpPortTLS", true)->value().toInt();
+      emailCreds.smtpPortSSL = request->getParam("smtpPortSSL", true)->value().toInt();
+      emailCreds.smtpSecurity = request->getParam("smtpSecurity", true)->value();
+      emailCreds.receiverMail = request->getParam("receiverMail", true)->value();
+      saveEmailCredentials(emailCreds);
+      request->redirect("/");
+    }
+  });
+
+  // Delete Wi-Fi credentials
+  credentialsServer.on("/deleteWifi", HTTP_GET, [](AsyncWebServerRequest *request){
+    deleteWiFiCredentials();
+    request->redirect("/");
+  });
+
+  // Delete email credentials
+  credentialsServer.on("/deleteEmail", HTTP_GET, [](AsyncWebServerRequest *request){
+    deleteEmailCredentials();
+    request->redirect("/");
+  });
+
+  // Connect to Wi-Fi with stored credentials
+  credentialsServer.on("/connectWifi", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", "Credentials received, attempting to connect...");
+    credentialsServer.end();
+    // dnsServer.stop();
+    Serial.println("deleting credentials Task...");
+    vTaskDelete(credentialsTaskHandle);
+    Serial.println("deleted credentials Task. Starting WebServer task");
+    xTaskCreate(
+      webServerTask,        // Function to implement the task
+      "WebServerTask",      // Name of the task
+      10000,                // Stack size in words
+      NULL,                 // Task input parameter
+      1,                    // Priority of the task
+      &webServerTaskHandle); // Task handle
+    Serial.println("WebServer Task Started.");
   });
 
   credentialsServer.begin();
@@ -426,9 +453,12 @@ void credentialsTask(void * parameter){
 
   for(;;) {
     // Allow the task to run indefinitely
-    delay(10);
+     // Lasse den DNS-Server laufen
+    // dnsServer.processNextRequest();
   }
 }
+
+
 
 // Function to read parameters from JSON file
 String readParameters() {
@@ -500,9 +530,9 @@ void deleteParameters() {
   LittleFS.remove(parameterFile);
 }
 
-String readHTMLFile() {
+String readHTMLFile(const char * filePath) {
   String htmlContent;
-  File file = LittleFS.open("/index2.html", "r");
+  File file = LittleFS.open(filePath, "r");
   if (file) {
     while (file.available()) {
       htmlContent += file.readString();
@@ -581,6 +611,127 @@ void downloadFileToLittleFS(const String &filepath, const String &url) {
     }
 }
 
+// Save Wi-Fi credentials to a text file
+void saveWiFiCredentials(String ssid, String password) {
+  File wifiFile = LittleFS.open(wifiCredentialsPath, "w");
+  if (!wifiFile) {
+    Serial.println("Failed to open Wi-Fi credentials file for writing");
+    return;
+  }
+
+  wifiFile.println(ssid);
+  wifiFile.println(password);
+  wifiFile.close();
+  Serial.printf("Saved WifiCredentials. SSID: %s, Password: %s", ssid, password);
+}
+
+// Save email credentials to a JSON file
+void saveEmailCredentials(EmailCredentials creds) {
+  File emailFile = LittleFS.open(emailCredentialsPath, "w");
+  if (!emailFile) {
+    Serial.println("Failed to open email credentials file for writing");
+    return;
+  }
+
+  StaticJsonDocument<256> doc;
+  doc["smtpServer"] = creds.smtpServer;
+  doc["smtpUser"] = creds.smtpUser;
+  doc["smtpPass"] = creds.smtpPass;
+  doc["smtpPortTLS"] = creds.smtpPortTLS;
+  doc["smtpPortSSL"] = creds.smtpPortSSL;
+  doc["smtpSecurity"] = creds.smtpSecurity;
+  doc["receiverMail"] = creds.receiverMail;
+
+  serializeJson(doc, emailFile);
+  emailFile.close();
+}
+
+// Load email credentials from the JSON file
+bool loadEmailCredentials() {
+  File emailFile = LittleFS.open(emailCredentialsPath, "r");
+  if (!emailFile) {
+    Serial.println("Email credentials file not found");
+    return false;
+  }
+
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, emailFile);
+  emailFile.close();
+  
+  if (error) {
+    Serial.println("Failed to parse email credentials");
+    return false;
+  }
+
+  emailCreds.smtpServer = doc["smtpServer"].as<String>();
+  emailCreds.smtpUser = doc["smtpUser"].as<String>();
+  emailCreds.smtpPass = doc["smtpPass"].as<String>();
+  emailCreds.smtpPortTLS = doc["smtpPortTLS"];
+  emailCreds.smtpPortSSL = doc["smtpPortSSL"];
+  emailCreds.smtpSecurity = doc["smtpSecurity"].as<String>();
+  emailCreds.receiverMail = doc["receiverMail"].as<String>();
+
+  return true;
+}
+
+// Delete Wi-Fi credentials
+void deleteWiFiCredentials() {
+  LittleFS.remove(wifiCredentialsPath);
+}
+
+// Delete email credentials
+void deleteEmailCredentials() {
+  LittleFS.remove(emailCredentialsPath);
+}
+
+String getSavedWiFiCredentials() {
+  if (!LittleFS.exists(wifiCredentialsPath)) {
+    return "No Wi-Fi credentials saved.";
+  }
+
+  File wifiFile = LittleFS.open(wifiCredentialsPath, "r");
+  if (!wifiFile) {
+    return "Error reading Wi-Fi credentials.";
+  }
+
+  String ssid = wifiFile.readStringUntil('\n');
+  String password = wifiFile.readStringUntil('\n');
+  wifiFile.close();
+
+
+  String result = "SSID: " + ssid + "<br>Password: " + password;
+  return result;
+}
+
+String getSavedEmailCredentials() {
+  if (!LittleFS.exists(emailCredentialsPath)) {
+    return "No email credentials saved.";
+  }
+
+  File emailFile = LittleFS.open(emailCredentialsPath, "r");
+  if (!emailFile) {
+    return "Error reading email credentials.";
+  }
+
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, emailFile);
+  emailFile.close();
+
+  if (error) {
+    return "Error parsing email credentials.";
+  }
+
+  String smtpServer = doc["smtpServer"].as<String>();
+  String smtpUser = doc["smtpUser"].as<String>();
+  String smtpSecurity = doc["smtpSecurity"].as<String>();
+  String receiverMail = doc["receiverMail"].as<String>();
+
+  // Return formatted credentials, hiding sensitive data
+  String result = "SMTP Server: " + smtpServer + "<br>User: " + smtpUser +
+                  "<br>Security: " + smtpSecurity + "<br>Receiver: " + receiverMail;
+  return result;
+}
+
 
 void smtpCallback(SMTP_Status status) {
   // Handle the SMTP callback
@@ -643,6 +794,7 @@ void smtpTask(void * parameter) {
   // Delete the task after email is sent
   vTaskDelete(NULL);
 }
+
 
 // Function to build the URL
 String buildURL(const String& tool_name) {

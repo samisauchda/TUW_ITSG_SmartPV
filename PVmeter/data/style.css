@@ -1,4 +1,3 @@
-
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -6,7 +5,7 @@ body {
     background-color: #f4f4f4;
 }
 
-h2 {
+h2, h3 {
     color: #333;
 }
 
@@ -18,7 +17,17 @@ form {
     margin-bottom: 20px;
 }
 
-input[type="number"], input[type="submit"], select, button {
+label {
+    display: block;
+    margin: 10px 0 5px;
+}
+
+input[type="number"], 
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+select, 
+button {
     width: calc(100% - 22px);
     padding: 10px;
     margin: 10px 0;
@@ -27,18 +36,22 @@ input[type="number"], input[type="submit"], select, button {
     box-sizing: border-box;
 }
 
-input[type="submit"], button {
+input[type="submit"], 
+button {
     background-color: #4CAF50;
     color: white;
     border: none;
     cursor: pointer;
 }
 
-input[type="submit"]:hover, button:hover {
+input[type="submit"]:hover, 
+button:hover {
     background-color: #45a049;
 }
 
-#savedParams {
+#savedParams, 
+#savedEmail, 
+#savedWifi {
     background-color: #e7f3fe;
     border-left: 6px solid #2196F3;
     padding: 10px;

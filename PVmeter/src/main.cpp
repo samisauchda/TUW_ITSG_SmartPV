@@ -27,16 +27,20 @@ double lat, lon, peakpower, loss, angle;
 int year, aspect, age;
 String pvtechchoice, mountingplace;
 
+// Paths for storing the Wi-Fi and email credentials
+const char* wifiCredentialsPath = "/wifi.txt";
+const char* emailCredentialsPath = "/email.json";
 const char* parameterFile = "/params.json";
+
+
+// Initialize email credentials
+EmailCredentials emailCreds;
+
 
 double energyIn=0.0;
 double energyOut=0.0;
 double vzTestValue=0.0;
 float powerIn=0.0;
-
-float* PVData = NULL; //Pointer to array for 
-float* SensorMaxPower = NULL; // Pointer to array for max Power datat from sensor
-
 
 std::list<Sensor *> *sensors = new std::list<Sensor *>();
 TaskHandle_t sensorTaskHandle = NULL;
@@ -165,73 +169,35 @@ void setup() {
 
   // Initialize LittleFS
   initLittleFS();
+  listLittleFSFiles();
 
-
-  // Create the timer
-  timerHandleStopWebserver = xTimerCreate(
-      "Task Timer",            // Timer name (for debugging)
-      pdMS_TO_TICKS(120000),    // Timer period in ticks (20 seconds)
-      pdFALSE,                 // One-shot timer (pdFALSE)
-      (void *)0,               // Timer ID (not used)
-      timerCallback            // Callback function
-  );
-
-  // Start the timer to later stop WebServer
-  if (timerHandleStopWebserver != NULL) {
-      xTimerStart(timerHandleStopWebserver, 0);
-  }
     
   
   // if no wfi credentials are available: start webserver 1 task to start wifi AP mode and ask for wifi and email readCredentials
   // -> afterwards stop task and start webserver 2 task to connect to wifi and webserver with modules page
-
-  // Read credentials from LittleFS
-  if (readCredentials()) {
-    Serial.println("WiFi credentials available. Starting webServer Task");
-    xTaskCreate(
+  xTaskCreate(
       webServerTask,        // Function to implement the task
       "WebServerTask",      // Name of the task
       10000,                // Stack size in words
       NULL,                 // Task input parameter
       1,                    // Priority of the task
       &webServerTaskHandle); // Task handle
-  } else {
-    Serial.println("NO WiFi credentials available. Starting credentials Task");
-    xTaskCreate(
-      credentialsTask,        // Function to implement the task
-      "credetialsTask",      // Name of the task
-      10000,                // Stack size in words
-      NULL,                 // Task input parameter
-      1,                    // Priority of the task
-      &credentialsTaskHandle); // Task handle
-  
-  }
-
   
   while (WiFi.status() != WL_CONNECTED)
   {
 
   }
-
-  
-
+  Serial.println("Connected to WiFi. Trying to Sync RTC with NTP Server...");
   sleep(5);
   // Configure and sync RTC to NTP
   syncRTCtime();
-
+  Serial.println("Time is:");
   getFormattedTime();
 
 
-
-  const char* fileURL = "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=48.212&lon=16.378&startyear=2017&endyear=2017&pvcalculation=1&peakpower=1&mountingplace=building&loss=1&optimalangles=1&optimalinclination=1&outputformat=csv";
   const char* filename = "/newFile.csv";    // File to save in SPIFFS
   const char* markDataBegin = "time,P";
   const int csvColumn = 1;
-
-  //listLittleFSFiles();
-  // Download the file
-
-  //downloadFileToLittleFS(filename, fileURL);
 
   listLittleFSFiles();
 

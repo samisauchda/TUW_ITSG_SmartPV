@@ -1,37 +1,43 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-  <title>ESP32 Wi-Fi Manager</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; }
-    .container { margin-top: 50px; }
-  </style>
+  <title>Wi-Fi and Email Credentials Entry</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" type="text/css" href="style.css"> <!-- Link to the CSS file -->
 </head>
 <body>
-  <div class="container">
-    <h1>Wi-Fi Manager</h1>
-    <form action="/get">
-      <label for="ssid">SSID:</label><br>
-      <input type="text" id="ssid" name="ssid"><br>
-      <label for="password">Password:</label><br>
-      <input type="text" id="password" name="password"><br><br>
-    <h2> EMail Parameters</h2>
-      <label for="SMTPserver">SMTP Server:</label><br>
-      <input type="text" id="SMTPserver" name="SMTPserver"><br>
-      <label for="SMTPuser">SMTP Username:</label><br>
-      <input type="text" id="SMTPuser" name="SMTPuser"><br>
-      <label for="SMTPpass">SMTP Password:</label><br>
-      <input type="text" id="SMTPpass" name="SMTPpass"><br>
-      <label for="SMTPportTLS">SMTP Port (TLS):</label><br>
-      <input type="number" id="SMTPportTLS" name="SMTPportTLS"><br>
-      <label for="SMTPportSSL">SMTP Port (SSL):</label><br>
-      <input type="number" id="SMTPportSSL" name="SMTPportSSL"><br>
-      <label for="TLSSSL">TSL / SSL required:</label><br>
-      <input type="checkbox" id="TLSSSL" name="TLSSSL"><br><br>
-      <label for="receiverMAIL">receiver EMail:</label><br>
-      <input type="text" id="receiverMAIL" name="receiverMAIL"><br><br>
-      <input type="submit" value="Submit">
-    </form>
-  </div>
+  <h2>Enter Wi-Fi Credentials</h2>
+  <form action="/saveWifi" method="POST">
+    Wi-Fi SSID: <input type="text" name="ssid" required><br>
+    Wi-Fi Password: <input type="password" name="password" required><br>
+    <input type="submit" value="Save Wi-Fi Credentials">
+  </form>
+  <br>
+  <button onclick="location.href='/deleteWifi'">Delete Wi-Fi Credentials</button>
+  <button onclick="location.href='/connectWifi'">Connect to Wi-Fi</button>
+  
+  <h2>Enter Email Credentials</h2>
+  <form action="/saveEmail" method="POST">
+    SMTP Server: <input type="text" name="smtpServer" required><br>
+    SMTP User: <input type="text" name="smtpUser" required><br>
+    SMTP Password: <input type="password" name="smtpPass" required><br>
+    SMTP Port (TLS): <input type="number" name="smtpPortTLS" min="0"><br>
+    SMTP Port (SSL): <input type="number" name="smtpPortSSL" min="0"><br>
+    SMTP Security: 
+    <select name="smtpSecurity">
+      <option value="TLS">TLS</option>
+      <option value="SSL">SSL</option>
+    </select><br>
+    Receiver Email Address: <input type="email" name="receiverMail" required><br>
+    <input type="submit" value="Save Email Credentials">
+  </form>
+  <br>
+  <button onclick="location.href='/deleteEmail'">Delete Email Credentials</button>
+
+  <h2>Saved Wi-Fi and Email Credentials</h2>
+  <div id="savedWifi">%SAVEDWIFI%</div>
+  <div id="savedEmail">%SAVEDEMAIL%</div>
+  <br>
+  <p><a href="/">Back to Home</a></p>
 </body>
 </html>

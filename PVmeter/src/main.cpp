@@ -1,12 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <list>
-#include <time.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-// #include "esp_timer.h"
+#include <ESPAsyncWebServer.h>
+#include <ESP_Mail_Client.h>
 
 #include "webServer.h"
 #include "Sensor.h"
@@ -14,13 +9,18 @@
 #include <sml/sml_file.h>
 #include "smlDebug.h"
 #include <esp_LittleFS.h>
+#include "helperFunctions.h"
 
 #include "timeFunctions.h"
 #include "csvFunctions.h"
 
-
-
 #define IR_RECV_D1 3
+
+#define WIFI_SSID "HolLANd"
+#define WIFI_PASSWORD "123polizei!"
+
+
+
 
 // Declare global variables
 double lat, lon, peakpower, loss, angle;
@@ -32,18 +32,10 @@ const char* wifiCredentialsPath = "/wifi.txt";
 const char* emailCredentialsPath = "/email.json";
 const char* parameterFile = "/params.json";
 
+String downloadURL;
 
 // Initialize email credentials
 EmailCredentials emailCreds;
-
-
-double energyIn=0.0;
-double energyOut=0.0;
-double vzTestValue=0.0;
-float powerIn=0.0;
-
-std::list<Sensor *> *sensors = new std::list<Sensor *>();
-TaskHandle_t sensorTaskHandle = NULL;
 
 // Required size for the array
 size_t arraySize = 8760; // Number of elements
@@ -53,24 +45,9 @@ float* PVData = allocateFloatArray(arraySize);
 float* SensorMaxPower = allocateFloatArray(arraySize);
 
 
+std::list<Sensor *> *sensors = new std::list<Sensor *>();
+TaskHandle_t sensorTaskHandle = NULL;
 
-
-// Initialize LittleFS
-void initLittleFS() {
-  if (!LittleFS.begin(true)) {
-    Serial.println("An error has occurred while mounting LittleFS");
-    return;
-  }
-  Serial.println("LittleFS mounted successfully");
-
-  listLittleFSFiles();
-}
-
-
-// ##########################################################################################
-// void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState)
-// call back function for libSML
-// process_message is a wrapper around the parse and publish method of class Sensor
 void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState)
 {
   //digitalWrite(LED_BUILTIN, LED_BUILTIN_ON);
@@ -141,7 +118,56 @@ void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState
     }
 }
 
+void initLittleFS();
 
+struct ergebnisTag {
+  float diff_min;
+  bool breakdown;
+};
+
+struct ergebnisTag ErgebnisWoche[7] = {};
+
+bool comparingStarted = false;
+
+struct ergebnisTag CompareOneDay(float Vergleich[], float Mess[], float altersfaktor, int index, int kWp) {
+  ergebnisTag erg = {.diff_min = 100, .breakdown = false};
+  float diff = 0;
+  float max_array2 = 0;
+
+   for (int i = index; i < (index + 24); i++) {
+    if (Vergleich[i] != 0) {
+      diff = 1 - (Vergleich[i] - (Mess[i] * altersfaktor)) / Vergleich[i]; // bei perioden gibt einen fehler weißt du wieso?
+      Serial.println(diff);
+      
+      if (diff > erg.diff_min && diff > 0) {
+        erg.diff_min = diff;
+        //Serial.print(" - ");
+        //Serial.println(erg.diff_min);
+      }
+      if (Mess[i] > max_array2){ // für die überprüfung ob überhaupt eine Leistung erzeugt wird
+        max_array2 = Mess[i];
+      }
+    }
+  }
+  
+  
+  if(max_array2 == 0 || max_array2 * 0.01 < kWp){ // stellt einen Pointer auf True falls keine/kaum Energie erzeugt wurde
+    erg.breakdown = true;
+  }
+  
+  return erg;
+}
+
+// Initialize LittleFS
+void initLittleFS() {
+  if (!LittleFS.begin(true)) {
+    Serial.println("An error has occurred while mounting LittleFS");
+    return;
+  }
+  Serial.println("LittleFS mounted successfully");
+
+  listLittleFSFiles();
+}
 
 
 void setup() {
@@ -175,6 +201,8 @@ void setup() {
   
   // if no wfi credentials are available: start webserver 1 task to start wifi AP mode and ask for wifi and email readCredentials
   // -> afterwards stop task and start webserver 2 task to connect to wifi and webserver with modules page
+  Serial.print("Free heap: ");
+  Serial.println(ESP.getFreeHeap());
   xTaskCreate(
       webServerTask,        // Function to implement the task
       "WebServerTask",      // Name of the task
@@ -182,6 +210,8 @@ void setup() {
       NULL,                 // Task input parameter
       1,                    // Priority of the task
       &webServerTaskHandle); // Task handle
+  Serial.print("Free heap: ");
+  Serial.println(ESP.getFreeHeap());
   
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -203,43 +233,43 @@ void setup() {
 
   if (!readParametersFromFile(parameterFile)) {
     Serial.println("Failed to read parameters from file");
-  } else {
-    // Print the parameters to confirm they were read successfully
-    Serial.println("Parameters loaded successfully:");
-    Serial.println("Latitude: " + String(lat));
-    Serial.println("Longitude: " + String(lon));
-    Serial.println("Year: " + String(year));
-    Serial.println("Peak Power: " + String(peakpower));
-    Serial.println("Loss: " + String(loss));
-    Serial.println("PV Tech Choice: " + pvtechchoice);
-    Serial.println("Mounting Place: " + mountingplace);
-    Serial.println("Angle: " + String(angle));
-    Serial.println("Aspect: " + String(aspect));
-    Serial.println("Age: " + String(age));
-  }
+  } 
+
+  xTaskCreate([](void*) {
+    
+    for(;;) {
+    // Allow the task to run indefinitely
+      for (std::list<Sensor*>::iterator it = sensors->begin(); it != sensors->end(); ++it)
+      {
+        (*it)->loop();
+      }
+    }
+   }, "SensorTask", 20000, NULL, 1, &sensorTaskHandle);  
 
 
-  // Call the function to read the CSV file
-  readCSVtoArray("/newFile.csv", PVData, arraySize, markDataBegin, csvColumn);
-  
-
-  //Print CSV data from arrays (for debugging)
-  // for (int i = 0; i < arraySize; i++) {
-  //   // Serial.print(timeArray[i]);
-  //   Serial.print("\t");
-  //   Serial.println(PVData[i]);
-  // }
-  //init and start sensor Task, run forever
-  
 }
 
-int analogValue = 0;
-int test = 0;
-
-
-
 void loop() {
-  sleep(50);
+  delay(10000);
 
- 
+  int Wochentag = rtc.getDayofWeek();
+  int Stunde = rtc.getHour(false);
+  int Minute = rtc.getMinute();
+  float altersfaktor = 1;   // replace
+
+  if(Wochentag = 0 && Stunde==0 && Minute==0 && comparingStarted == false){
+    comparingStarted = true;
+    int indexGestern = calculateDataIndex() -24;
+    ErgebnisWoche[Wochentag] = CompareOneDay(PVData, SensorMaxPower, altersfaktor, indexGestern, peakpower);
+    //send Mail
+  } else if (Stunde==0 && Minute==0 && comparingStarted == false) {
+    comparingStarted = true;
+    int indexGestern = calculateDataIndex() -24;
+    ErgebnisWoche[Wochentag] = CompareOneDay(PVData, SensorMaxPower, altersfaktor, indexGestern, peakpower);
+  } else if (Stunde==0 && Minute==0) {
+    comparingStarted == false;
+  }
+
+  // Main loop remains empty since tasks are running independently
+
 }

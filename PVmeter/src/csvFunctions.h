@@ -90,6 +90,8 @@ void readCSVtoArray(const char* filePath, float dataArray[], int maxRows, String
     Serial.print(": ");
     Serial.println(dataArray[i]);
   }
+
+  return;
 }
 
 

@@ -94,6 +94,10 @@ String getSavedEmailCredentials();
 void startWebServer(const char* htmlPage);
 void webServerTask(void *parameter);
 
+void startDownloadTask(const String &filepath, const String &url);
+void downloadTask(void *parameter);
+void downloadFileToLittleFS(const String &filepath, const String &url);
+
 
 // Connect to Wi-Fi with provided credentials
 bool connectToWiFi() {
@@ -149,6 +153,76 @@ bool connectToWiFi() {
     return false;
   }
 }
+
+void downloadFileToLittleFS(const String &filepath, const String &url) {
+    // Wait for WiFi connection
+    if ((WiFi.status() == WL_CONNECTED)) {
+        File file = LittleFS.open(filepath.c_str(), FILE_WRITE);
+
+        if (!file) {
+            Serial.println("[LittleFS] Failed to open file for writing.");
+            return;
+        }
+
+        HTTPClient http;
+
+        Serial.print("[HTTP] begin...\n");
+
+        // Configure the server and URL (no port parameter needed)
+        http.begin(url);
+
+        Serial.print("[HTTP] GET...\n");
+        // Start connection and send HTTP header
+        int httpCode = http.GET();
+
+        if (httpCode > 0) {
+            // HTTP header has been sent and Server response header has been handled
+            Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+            // File found at server
+            if (httpCode == HTTP_CODE_OK) {
+                // Get length of the document (is -1 when Server sends no Content-Length header)
+                int len = http.getSize();
+
+                // Create buffer for reading
+                uint8_t buff[128] = { 0 };
+
+                // Get TCP stream
+                WiFiClient *stream = http.getStreamPtr();
+
+                // Read all data from server
+                while (http.connected() && (len > 0 || len == -1)) {
+                    // Get available data size
+                    size_t size = stream->available();
+
+                    if (size) {
+                        // Read up to 128 bytes
+                        int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
+
+                        // Write it to LittleFS file
+                        file.write(buff, c);
+                        // Optionally, write to Serial for debugging
+                        //Serial.write(buff, c);
+
+                        if (len > 0) {
+                            len -= c;
+                        }
+                    }
+                    delay(1);
+                }
+
+                Serial.println();
+                Serial.print("[HTTP] connection closed or file end.\n");
+                file.close();
+            }
+        } else {
+            Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        }
+
+        http.end();
+    }
+}
+
 
 void timerCallback(TimerHandle_t xTimer) {
     Serial.println("Timer expired, killing webserver task...");
@@ -344,12 +418,26 @@ void startWebServer(const char* htmlPage) {
     request->redirect("/");
   });
 
-  // // Handle test function call
-  // server.on("/downloadFile", HTTP_GET, [](AsyncWebServerRequest *request) {
-  //       Serial.println("Calling downloadFile function");
-  //       // Respond immediately to the client
-  //       request->send(200, "text/plain", "Download started.");
-  //   });
+  server.on("/downloadFile", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println("Calling downloadFile function");
+
+        xTaskCreate(
+          downloadTask,     // Task function
+          "DownloadTask",   // Name of the task
+          32768,             // Stack size (in bytes)
+          NULL,             // No parameters are passed to the task
+          1,                // Priority of the task
+          NULL              // Task handle
+        );
+        // String downloadURL = buildURL("seriescalc");
+        // Serial.println(downloadURL);
+        
+        // Start the download task
+        //startDownloadTask("/hourly_data.csv", downloadURL);
+
+        // Respond immediately to the client
+        request->send(200, "text/plain", "Download started.");
+    });
 
 
   server.on("/sendTestMail", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -391,6 +479,36 @@ void startWebServer(const char* htmlPage) {
 
   server.begin();
   Serial.println("HTTP server started");
+}
+
+// Function to handle the download task
+void downloadTask(void* parameter) {
+  // Ensure memory usage is minimal within the task
+
+  // Build the URL
+  String url = buildURL("seriescalc");
+  String filename = "downloaded_file.txt";  // You can modify this logic if filename is dynamic
+
+
+  
+  if ((WiFi.status() == WL_CONNECTED)) {
+    File file = LittleFS.open(filename.c_str(), FILE_WRITE);
+
+    if (!file) {
+        Serial.println("[LittleFS] Failed to open file for writing.");
+        return;
+    }
+
+    HTTPClient http;
+
+    Serial.print("[HTTP] begin...\n");
+  //https://github.com/me-no-dev/AsyncTCP/issues/110
+    
+    
+  }
+
+  // Delete the task to free its resources
+  vTaskDelete(NULL);
 }
 
 

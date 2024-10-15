@@ -26,7 +26,7 @@ struct EmailParams {
 
 extern const char* emailCredentialsPath;
 
-const char * emailTemplateIP = "This is the first email. Your IP address is: {IP}.";
+const char * emailTemplateIP = "This is the first email. Your IP address is: %s";
 const String emailTemplateWeekly = "This is the second email with 7 values:\nValue 1: {value1}\nValue 2: {value2}\nValue 3: {value3}\nValue 4: {value4}\nValue 5: {value5}\nValue 6: {value6}\nValue 7: {value7}.";
 String emailText;
 // empty char array for IP paramater handling

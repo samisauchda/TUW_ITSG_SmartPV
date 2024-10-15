@@ -1,4 +1,0 @@
-https://re.jrc.ec.europa.eu/api/v5_1/tool_name?param1=value1&param2=value2&...
-
-
-https://re.jrc.ec.europa.eu/api/v5_1/seriescalc?lat=48.212&lon=16.378&startyear=2016&endyear=2016&pvcalculation=1&peakpower=1&mountingplace=building&loss=1&optimalangles=1&optimalinclination=1&outputformat=csv&browser=1

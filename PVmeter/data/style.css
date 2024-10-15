@@ -5,11 +5,12 @@ body {
     background-color: #f4f4f4;
 }
 
-h2, h3 {
+h2 {
     color: #333;
+    margin-top: 30px;
 }
 
-form {
+.credentials-form, .upload-form {
     background-color: #fff;
     padding: 20px;
     border-radius: 8px;
@@ -22,11 +23,13 @@ label {
     margin: 10px 0 5px;
 }
 
-input[type="number"], 
-input[type="text"], 
-input[type="email"], 
-input[type="password"], 
-select, 
+input[type="number"],
+input[type="text"],
+input[type="email"],
+input[type="password"],
+select,
+input[type="file"],
+input[type="submit"],
 button {
     width: calc(100% - 22px);
     padding: 10px;
@@ -36,7 +39,7 @@ button {
     box-sizing: border-box;
 }
 
-input[type="submit"], 
+input[type="submit"],
 button {
     background-color: #4CAF50;
     color: white;
@@ -44,17 +47,25 @@ button {
     cursor: pointer;
 }
 
-input[type="submit"]:hover, 
+input[type="submit"]:hover,
 button:hover {
     background-color: #45a049;
 }
 
-#savedParams, 
-#savedEmail, 
-#savedWifi {
+.button-group {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+}
+
+.saved-credentials {
     background-color: #e7f3fe;
     border-left: 6px solid #2196F3;
     padding: 10px;
     margin: 10px 0;
     border-radius: 4px;
+}
+
+h3 {
+    color: #555;
 }

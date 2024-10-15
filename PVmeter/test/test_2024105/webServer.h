@@ -1,21 +1,18 @@
 #ifndef WEBSERVER_H_
 #define WEBSERVER_H_
 
-#include <string.h> // Include for string handling
-
 
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 //#include <SPIFFS.h>
 #include <esp_LittleFS.h>
-#include <ESP_Mail_Client.h>
+
 // #include <ESP32_MailClient.h>
 #include <HTTPClient.h>
 #include "helperFunctions.h"
 #include "csvFunctions.h"
 #include "Sensor.h"
 #include "email.h"
-#include "timeFunctions.h"
 
 // Network credentials for Access Point
 const char* ssidAP = "ESP32-Access-Point";
@@ -61,7 +58,6 @@ extern String downloadURL;
 // Initialize email credentials
 extern EmailCredentials emailCreds;
 
-
 typedef struct {
     String message_to_send;
 } TaskParams;
@@ -84,15 +80,18 @@ String buildURL(const String& tool_name);
 
 extern float* PVData;
 
-void saveWiFiCredentials(String ssid, String password);
-void saveEmailCredentials(EmailCredentials creds);
-void deleteWiFiCredentials();
-void deleteEmailCredentials();
-String getSavedWiFiCredentials();
-String getSavedEmailCredentials(); 
 
 void startWebServer(const char* htmlPage);
 void webServerTask(void *parameter);
+
+void saveWiFiCredentials(String ssid, String password);
+void saveEmailCredentials(EmailCredentials creds);
+bool loadEmailCredentials();
+void deleteWiFiCredentials();
+void deleteEmailCredentials();
+void sendTestMail();
+String getSavedWiFiCredentials();
+String getSavedEmailCredentials(); 
 
 
 // Connect to Wi-Fi with provided credentials
@@ -133,16 +132,7 @@ bool connectToWiFi() {
     Serial.println("Connected to WiFi");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
-    char ipAddress[16]; // Adjust size if necessary
-    IPAddress localIP = WiFi.localIP();
-    snprintf(ipAddress, sizeof(ipAddress), "%d.%d.%d.%d", localIP[0], localIP[1], localIP[2], localIP[3]);
-    xTaskCreate(sendEmailTaskIPaddress, "SendEmailWithIP", 32768, (void*)ipAddress, 1, NULL);
-
-    Serial.println("Connected to WiFi. Trying to Sync RTC with NTP Server...");
-    sleep(5);
-    // Configure and sync RTC to NTP
-    syncRTCtime();
-
+    const char * localIP = WiFi.localIP().toString().c_str();
     return true;
   } else {
     Serial.println("Failed to connect to WiFi");
@@ -257,6 +247,17 @@ void webServerTask(void * parameter) {
     // If credentials are available and connection is successful, start the server with index2.html
     startWebServer("/index2.html");
     delay(1000);
+
+    TaskParams task_params;
+    task_params.message_to_send = WiFi.localIP().toString(); // 500 ms delay
+    Serial.println(task_params.message_to_send);
+    // xTaskCreate(
+    //   smtpTask,               // Function to implement the task
+    //   "EmailTask",            // Name of the task
+    //   10000,                  // Stack size in words
+    //   &task_params,                   // Task input parameter
+    //   1,                      // Priority of the task
+    //   &smtpTaskHandle);       // Task handle
     
 
   } else {
@@ -285,7 +286,6 @@ void webServerTask(void * parameter) {
     // UBaseType_t remainingStack = uxTaskGetStackHighWaterMark(NULL); // NULL gets current task
     // Serial.print("WebServer Remaining stack: ");
     // Serial.println(remainingStack);
-    //Serial.println(WiFi.status());
   }
 }
 
@@ -344,20 +344,17 @@ void startWebServer(const char* htmlPage) {
     request->redirect("/");
   });
 
-  // // Handle test function call
-  // server.on("/downloadFile", HTTP_GET, [](AsyncWebServerRequest *request) {
-  //       Serial.println("Calling downloadFile function");
-  //       // Respond immediately to the client
-  //       request->send(200, "text/plain", "Download started.");
-  //   });
+  // Handle test function call
+  server.on("/downloadFile", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println("Calling downloadFile function");
+        // Respond immediately to the client
+        request->send(200, "text/plain", "Download started.");
+    });
 
 
   server.on("/sendTestMail", HTTP_GET, [](AsyncWebServerRequest *request) {
     Serial.println("Trying to send Test mail");
-    Serial.print("Free heap: ");
-    Serial.println(ESP.getFreeHeap());
-    xTaskCreate(sendEmailTaskIPaddress, "Send Email Task", 8192, NULL, 1, NULL);
-    // sendEmail();
+    // xTaskCreate(sendEmailTask, "Send Email Task", 8192, NULL, 1, NULL);
     request->redirect("/");
   });
 
@@ -365,21 +362,6 @@ void startWebServer(const char* htmlPage) {
   server.on("/deleteWifi", HTTP_GET, [](AsyncWebServerRequest *request){
     deleteWiFiCredentials();
     request->redirect("/");
-  });
-
-  server.on("/saveEmail", HTTP_POST, [](AsyncWebServerRequest *request){
-    if (request->hasParam("smtpServer", true) && request->hasParam("smtpUser", true)
-        && request->hasParam("smtpPass", true) && request->hasParam("receiverMail", true)) {
-      emailCreds.smtpServer = request->getParam("smtpServer", true)->value();
-      emailCreds.smtpUser = request->getParam("smtpUser", true)->value();
-      emailCreds.smtpPass = request->getParam("smtpPass", true)->value();
-      emailCreds.smtpPortTLS = request->getParam("smtpPortTLS", true)->value().toInt();
-      emailCreds.smtpPortSSL = request->getParam("smtpPortSSL", true)->value().toInt();
-      emailCreds.smtpSecurity = request->getParam("smtpSecurity", true)->value();
-      emailCreds.receiverMail = request->getParam("receiverMail", true)->value();
-      saveEmailCredentials(emailCreds);
-      request->send(200, "text/plain", "Email credentials saved successfully");
-    }
   });
 
   // Delete email credentials
@@ -392,6 +374,7 @@ void startWebServer(const char* htmlPage) {
   server.begin();
   Serial.println("HTTP server started");
 }
+
 
 
 // Function to read parameters from JSON file
@@ -511,6 +494,12 @@ void saveEmailCredentials(EmailCredentials creds) {
 
   serializeJson(doc, emailFile);
   emailFile.close();
+}
+
+
+
+void sendTestMail() {
+ 
 }
 
 // Delete Wi-Fi credentials

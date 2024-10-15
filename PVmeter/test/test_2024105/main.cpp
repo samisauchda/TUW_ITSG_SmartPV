@@ -10,10 +10,10 @@
 #include "smlDebug.h"
 #include <esp_LittleFS.h>
 #include "helperFunctions.h"
+#include "email.h"
 
 #include "timeFunctions.h"
 #include "csvFunctions.h"
-#include "email.h"
 
 #define IR_RECV_D1 3
 
@@ -38,6 +38,15 @@ size_t arraySize = 8760; // Number of elements
 
 float* PVData = allocateFloatArray(arraySize);
 float* SensorMaxPower = allocateFloatArray(arraySize);
+
+struct ergebnisTag {
+  float diff_min;
+  bool breakdown;
+};
+
+struct ergebnisTag ErgebnisWoche[7] = {};
+
+bool comparingStarted = false;
 
 
 std::list<Sensor *> *sensors = new std::list<Sensor *>();
@@ -114,15 +123,6 @@ void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState
 }
 
 void initLittleFS();
-
-struct ergebnisTag {
-  float diff_min;
-  bool breakdown;
-};
-
-struct ergebnisTag ErgebnisWoche[7] = {};
-
-bool comparingStarted = false;
 
 struct ergebnisTag CompareOneDay(float Vergleich[], float Mess[], float altersfaktor, int index, int kWp) {
   ergebnisTag erg = {.diff_min = 100, .breakdown = false};
@@ -201,7 +201,7 @@ void setup() {
   xTaskCreate(
       webServerTask,        // Function to implement the task
       "WebServerTask",      // Name of the task
-      8192,                // Stack size in words
+      16384,                // Stack size in words
       NULL,                 // Task input parameter
       1,                    // Priority of the task
       &webServerTaskHandle); // Task handle
@@ -212,7 +212,17 @@ void setup() {
   {
 
   }
+  Serial.println("Connected to WiFi. Trying to Sync RTC with NTP Server...");
+  sleep(5);
+  // Configure and sync RTC to NTP
+  syncRTCtime();
+  Serial.print("Time is:");
+  getFormattedTime();
 
+  
+  IPAddress localIP = WiFi.localIP();
+  sprintf(ipStr, "%d.%d.%d.%d", localIP[0], localIP[1], localIP[2], localIP[3]); // Example IP address
+  xTaskCreate(sendEmailTaskIPaddress, "SendEmailWithIP", 16384, (void*)ipStr, 1, NULL);
 
 
   const char* filename = "/newFile.csv";    // File to save in SPIFFS
@@ -234,7 +244,8 @@ void setup() {
         (*it)->loop();
       }
     }
-   }, "SensorTask", 8192, NULL, 1, &sensorTaskHandle);  
+   }, "SensorTask", 20000, NULL, 1, &sensorTaskHandle);  
+
 
 }
 
@@ -262,16 +273,10 @@ void loop() {
     int indexGestern = calculateDataIndex() -24;
     ErgebnisWoche[Wochentag] = CompareOneDay(PVData, SensorMaxPower, altersfaktor, indexGestern, peakpower);
     //send Mail
-    // all breakdown values der Woche zusammenfassen
-    
-    float values[16] = {true, 1.2, 1.5, 0.8, 1.1, 1.3, 1.0, 1.4, 
-                    300.0, 320.0, 290.0, 310.0, 330.0, 340.0, 280.0, 0.9};
-    // Create the task, passing the parameters as a void pointer
-    xTaskCreate(sendEmailTaskWeekly, "EmailTask", 2048, (void*)values, 1, NULL);  
     //create Task
 
   } else if (Stunde==0 && Minute==0 && comparingStarted == false) {
-        //maybe kill Sensor Task to get ressources for processing
+    //maybe kill Sensor Task to get ressources for processing
     // if 0:00 -> eval last day
     comparingStarted = true;
 

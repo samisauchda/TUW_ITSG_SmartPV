@@ -10,7 +10,7 @@
   <h2>Parameter Entry</h2>
 
   <!-- Parameters Form -->
-  <form action="/get" method="GET">
+  <form action="/get" method="GET" class="credentials-form">
     <label for="lat">Latitude:</label>
     <input type="number" id="lat" name="lat" step="any" required>
 
@@ -54,20 +54,22 @@
 
   <!-- Saved Parameters Section -->
   <h2>Saved Parameters</h2>
-  <div id="savedParams">%SAVEDPARAMS%</div>
-  <button onclick="location.href='/delete'">Delete All Parameters</button>
-  <button onclick="location.href='/downloadFile'">Download CSV vom PV GIS</button>
+  <div id="savedParams" class="saved-credentials">%SAVEDPARAMS%</div>
+  <div class="button-group">
+    <button onclick="location.href='/delete'">Delete All Parameters</button>
+    <button onclick="location.href='/downloadFile'">Download CSV vo PV GIS</button>
+  </div>
 
   <!-- File Upload Section -->
   <h2>Upload File</h2>
-  <form method="POST" action="/upload" enctype="multipart/form-data">
+  <form method="POST" action="/upload" enctype="multipart/form-data" class="upload-form">
     <input type="file" name="file" required>
     <input type="submit" value="Upload">
   </form>
 
   <!-- Email Credentials Section -->
   <h2>Enter Email Credentials</h2>
-  <form action="/saveEmail" method="POST">
+  <form action="/saveEmail" method="POST" class="credentials-form">
     <label for="smtpServer">SMTP Server:</label>
     <input type="text" id="smtpServer" name="smtpServer" required>
 
@@ -96,13 +98,15 @@
   </form>
 
   <h3>Saved Email Credentials</h3>
-  <div id="savedEmail">%SAVEDEMAIL%</div>
-  <button onclick="location.href='/sendTestMail'">Send Test Mail</button>
-  <button onclick="location.href='/deleteEmail'">Delete Email Credentials</button>
+  <div id="savedEmail" class="saved-credentials">%SAVEDEMAIL%</div>
+  <div class="button-group">
+    <button onclick="location.href='/sendTestMail'">Send Test Mail</button>
+    <button onclick="location.href='/deleteEmail'">Delete Email Credentials</button>
+  </div>
 
   <!-- Wi-Fi Credentials Section -->
   <h2>Enter Wi-Fi Credentials</h2>
-  <form action="/saveWifi" method="POST">
+  <form action="/saveWifi" method="POST" class="credentials-form">
     <label for="ssid">Wi-Fi SSID:</label>
     <input type="text" id="ssid" name="ssid" required>
 
@@ -113,9 +117,11 @@
   </form>
 
   <h3>Saved Wi-Fi Credentials</h3>
-  <div id="savedWifi">%SAVEDWIFI%</div>
-  <button onclick="location.href='/deleteWifi'">Delete Wi-Fi Credentials</button>
-  <button onclick="location.href='/connectWifi'">Connect to Wi-Fi</button>
+  <div id="savedWifi" class="saved-credentials">%SAVEDWIFI%</div>
+  <div class="button-group">
+    <button onclick="location.href='/deleteWifi'">Delete Wi-Fi Credentials</button>
+    <button onclick="location.href='/connectWifi'">Connect to Wi-Fi</button>
+  </div>
 
   <p><a href="/">Back to Home</a></p>
 </body>

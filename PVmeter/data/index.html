@@ -6,38 +6,58 @@
   <link rel="stylesheet" type="text/css" href="style.css"> <!-- Link to the CSS file -->
 </head>
 <body>
-  <h2>Enter Wi-Fi Credentials</h2>
-  <form action="/saveWifi" method="POST">
-    Wi-Fi SSID: <input type="text" name="ssid" required><br>
-    Wi-Fi Password: <input type="password" name="password" required><br>
+  <h2>Wi-Fi Credentials</h2>
+  <form action="/saveWifi" method="POST" class="credentials-form">
+    <label for="ssid">Wi-Fi SSID:</label>
+    <input type="text" name="ssid" id="ssid" required>
+    
+    <label for="password">Wi-Fi Password:</label>
+    <input type="password" name="password" id="password" required>
+    
     <input type="submit" value="Save Wi-Fi Credentials">
   </form>
-  <br>
-  <button onclick="location.href='/deleteWifi'">Delete Wi-Fi Credentials</button>
-  <button onclick="location.href='/connectWifi'">Connect to Wi-Fi</button>
-  
-  <h2>Enter Email Credentials</h2>
-  <form action="/saveEmail" method="POST">
-    SMTP Server: <input type="text" name="smtpServer" required><br>
-    SMTP User: <input type="text" name="smtpUser" required><br>
-    SMTP Password: <input type="password" name="smtpPass" required><br>
-    SMTP Port (TLS): <input type="number" name="smtpPortTLS" min="0"><br>
-    SMTP Port (SSL): <input type="number" name="smtpPortSSL" min="0"><br>
-    SMTP Security: 
-    <select name="smtpSecurity">
+
+  <div class="button-group">
+    <button onclick="location.href='/deleteWifi'">Delete Wi-Fi Credentials</button>
+    <button onclick="location.href='/connectWifi'">Connect to Wi-Fi</button>
+  </div>
+
+  <h2>Email Credentials</h2>
+  <form action="/saveEmail" method="POST" class="credentials-form">
+    <label for="smtpServer">SMTP Server:</label>
+    <input type="text" name="smtpServer" id="smtpServer" required>
+    
+    <label for="smtpUser">SMTP User:</label>
+    <input type="text" name="smtpUser" id="smtpUser" required>
+    
+    <label for="smtpPass">SMTP Password:</label>
+    <input type="password" name="smtpPass" id="smtpPass" required>
+    
+    <label for="smtpPortTLS">SMTP Port (TLS):</label>
+    <input type="number" name="smtpPortTLS" id="smtpPortTLS" min="0">
+    
+    <label for="smtpPortSSL">SMTP Port (SSL):</label>
+    <input type="number" name="smtpPortSSL" id="smtpPortSSL" min="0">
+    
+    <label for="smtpSecurity">SMTP Security:</label>
+    <select name="smtpSecurity" id="smtpSecurity">
       <option value="TLS">TLS</option>
       <option value="SSL">SSL</option>
-    </select><br>
-    Receiver Email Address: <input type="email" name="receiverMail" required><br>
+    </select>
+    
+    <label for="receiverMail">Receiver Email Address:</label>
+    <input type="email" name="receiverMail" id="receiverMail" required>
+    
     <input type="submit" value="Save Email Credentials">
   </form>
-  <br>
-  <button onclick="location.href='/deleteEmail'">Delete Email Credentials</button>
 
-  <h2>Saved Wi-Fi and Email Credentials</h2>
-  <div id="savedWifi">%SAVEDWIFI%</div>
-  <div id="savedEmail">%SAVEDEMAIL%</div>
+  <button onclick="location.href='/deleteEmail'" class="delete-button">Delete Email Credentials</button>
+
+  <h2>Saved Credentials</h2>
+  <div id="savedWifi" class="saved-credentials">%SAVEDWIFI%</div>
+  <div id="savedEmail" class="saved-credentials">%SAVEDEMAIL%</div>
   <br>
+  
   <p><a href="/">Back to Home</a></p>
 </body>
 </html>

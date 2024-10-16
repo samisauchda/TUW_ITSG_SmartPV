@@ -16,6 +16,7 @@
 #include "Sensor.h"
 #include "email.h"
 #include "timeFunctions.h"
+#include "download.h"
 
 // Network credentials for Access Point
 const char* ssidAP = "ESP32-Access-Point";
@@ -79,7 +80,6 @@ String readHTMLFile(const char * filePath);
 
 // Forward declare the function to read parameters
 bool readParametersFromFile(const char* path);
-String buildURL(const String& tool_name);
 
 
 extern float* PVData;
@@ -95,7 +95,6 @@ void startWebServer(const char* htmlPage);
 void webServerTask(void *parameter);
 
 void startDownloadTask(const String &filepath, const String &url);
-void downloadTask(void *parameter);
 void downloadFileToLittleFS(const String &filepath, const String &url);
 
 
@@ -424,7 +423,7 @@ void startWebServer(const char* htmlPage) {
         xTaskCreate(
           downloadTask,     // Task function
           "DownloadTask",   // Name of the task
-          32768,             // Stack size (in bytes)
+          8192,             // Stack size (in bytes)
           NULL,             // No parameters are passed to the task
           1,                // Priority of the task
           NULL              // Task handle
@@ -481,35 +480,6 @@ void startWebServer(const char* htmlPage) {
   Serial.println("HTTP server started");
 }
 
-// Function to handle the download task
-void downloadTask(void* parameter) {
-  // Ensure memory usage is minimal within the task
-
-  // Build the URL
-  String url = buildURL("seriescalc");
-  String filename = "downloaded_file.txt";  // You can modify this logic if filename is dynamic
-
-
-  
-  if ((WiFi.status() == WL_CONNECTED)) {
-    File file = LittleFS.open(filename.c_str(), FILE_WRITE);
-
-    if (!file) {
-        Serial.println("[LittleFS] Failed to open file for writing.");
-        return;
-    }
-
-    HTTPClient http;
-
-    Serial.print("[HTTP] begin...\n");
-  //https://github.com/me-no-dev/AsyncTCP/issues/110
-    
-    
-  }
-
-  // Delete the task to free its resources
-  vTaskDelete(NULL);
-}
 
 
 // Function to read parameters from JSON file
@@ -689,40 +659,6 @@ String getSavedEmailCredentials() {
   return result;
 }
 
-// Function to build the URL
-String buildURL(const String& tool_name) {
-    String url = "https://re.jrc.ec.europa.eu/api/v5_3/" + tool_name + "?";
-
-    bool firstParam = true;  // To manage the first parameter addition
-
-    // Helper function to append parameters to the URL
-    auto appendParam = [&](const String& key, const String& value) {
-        if (!value.isEmpty()) {
-            if (firstParam) {
-                url += key + "=" + value;
-                firstParam = false;  // No longer the first parameter
-            } else {
-                url += "&" + key + "=" + value;
-            }
-        }
-    };
-
-
-    // Extract parameters from JSON document and append them to the URL
-    appendParam("lat", String(lat));
-    appendParam("lon", String(lon));
-    appendParam("startyear", String(year)); // Use startyear
-    appendParam("endyear", String(year));   // Use endyear
-    appendParam("peakpower", String(peakpower));
-    appendParam("loss", String(loss));
-    appendParam("pvtechchoice", String(pvtechchoice));
-    appendParam("mountingplace", String(mountingplace));
-    appendParam("angle", String(angle));
-    appendParam("aspect", String(aspect));
-    appendParam("pvcalculation", String(1));
-
-    return url;  // Return the constructed URL
-}
 
 bool readParametersFromFile(const char* path) {
   // Open the JSON file

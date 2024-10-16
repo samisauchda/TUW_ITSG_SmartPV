@@ -7,7 +7,6 @@
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
 
-#include "helperFunctions.h"
 
 extern double lat, lon, peakpower, loss, angle;
 extern int year, aspect, age;
@@ -15,11 +14,6 @@ extern String pvtechchoice, mountingplace;
 
 void downloadTask(void* parameter);
 String buildURL(const String& tool_name);
-
-void download(String host, String extension, AsyncClient* tcpClient, File* file);
-
-AsyncClient tcpClient;
-File file;
 
 
 
@@ -67,7 +61,7 @@ void downloadTask(void* parameter) {
 
   // Build the URL
   String url = buildURL("seriescalc");
-  String filename = "/downloaded_file.txt";  // You can modify this logic if filename is dynamic
+  String filename = "downloaded_file.txt";  // You can modify this logic if filename is dynamic
 
 
   
@@ -136,11 +130,6 @@ void downloadTask(void* parameter) {
     }
 
     http.end();
-
-
-
-
-
     
   //https://github.com/me-no-dev/AsyncTCP/issues/110
     
@@ -149,83 +138,6 @@ void downloadTask(void* parameter) {
 
   // Delete the task to free its resources
   vTaskDelete(NULL);
-}
-
-void sendStringToServer( String sendMsg, AsyncClient* tcpClient ) {
-  tcpClient->add( sendMsg.c_str() , sendMsg.length() );
-  tcpClient->send();
-}
-
-static void handleData(void* arg, AsyncClient* client, void *data, size_t len) {
-  static bool first_response = true; 
-  File* file = (File*)arg;
-  /* Server response information is being sent before the actual file. 
-     This extra information should not be saved into the file.*/
-  if (first_response) {
-    size_t cur_pos = 0;
-    char* temp = (char*) data;
-    for (int i = 0; i < len; ++i) {
-      if (temp[i] == '\n') {
-        cur_pos = i;
-      }
-    }
-    ++cur_pos;
-    file->write((uint8_t*)data + cur_pos, len - cur_pos);
-    first_response = false;
-    return;
-  }
-
-  file->write((uint8_t*)data, len);
-}
-
-static void handleError(void* arg, AsyncClient* client, int8_t error) {
-  Serial.printf("[CALLBACK] error %i \n", error);
-  File* file = (File*)arg;
-  file->close();
-}
-
-static void handleTimeOut(void* arg, AsyncClient* client, uint32_t time) {
-  Serial.println("[CALLBACK] ACK timeout");
-  File* file = (File*)arg;
-  file->close();
-}
-
-static void handleDisconnect(void* arg, AsyncClient* client) {
-  Serial.println("[CALLBACK] discconnected");
-  File* file = (File*)arg;
-  file->close();
-}
-
-
-void download(String host, String extension, AsyncClient* tcpClient, File* file) {
-  // Assign callbacks
-  tcpClient->onData(&handleData, file);
-  tcpClient->onError(&handleError, file);
-  tcpClient->onTimeout(&handleTimeOut, file);
-  tcpClient->onDisconnect(&handleDisconnect, file);
-
-  // Connect to host
-  tcpClient->connect(host.c_str(), 80);
-  while (!tcpClient->connected()) {
-    Serial.print(".");
-    delay(100);
-  }
-  Serial.println("Connected");
-
-  // Generate TCP Download command
-  String resp = String("GET ") +
-                extension +
-                String(" HTTP/1.1\r\n") +
-                String("Host: ") +
-                host +
-                String("\r\n") +
-                String("Icy-MetaData:1\r\n") +
-                String("Connection: close\r\n\r\n");
-
-  // Send download command
-  sendStringToServer(resp, tcpClient);
-
-  // After this point, onData Callback will receive the data and write it to SD card
 }
 
 

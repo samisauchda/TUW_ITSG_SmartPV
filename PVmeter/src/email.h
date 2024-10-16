@@ -256,28 +256,8 @@ void sendEmailTaskWeekly(void *parameter) {
     loadEmailCredentials(); // Load email credentials from storage
 
     // Unpack the parameters from the void pointer (you can use a struct for better handling)
-    float* values = (float*)parameter;
-    bool breakdown = static_cast<bool>(values[0]); // Assuming breakdown is the first value
-    float Vergleichsfaktor1 = values[1];
-    float Vergleichsfaktor2 = values[2];
-    float Vergleichsfaktor3 = values[3];
-    float Vergleichsfaktor4 = values[4];
-    float Vergleichsfaktor5 = values[5];
-    float Vergleichsfaktor6 = values[6];
-    float Vergleichsfaktor7 = values[7];
-    float Energie1 = values[8];
-    float Energie2 = values[9];
-    float Energie3 = values[10];
-    float Energie4 = values[11];
-    float Energie5 = values[12];
-    float Energie6 = values[13];
-    float Energie7 = values[14];
-    float Altersfaktor = values[15];
-
-    // Construct the email text using the updateEmailText function
-    String emailText = updateEmailText(breakdown, Vergleichsfaktor1, Vergleichsfaktor2, Vergleichsfaktor3,
-                                        Vergleichsfaktor4, Vergleichsfaktor5, Vergleichsfaktor6, Vergleichsfaktor7,
-                                        Energie1, Energie2, Energie3, Energie4, Energie5, Energie6, Energie7, Altersfaktor);
+    bool isBreakdown = check_breakdown(ErgebnisWoche);
+    // breakdown aus allen Tagen muss kombiniert werden zu einem
     
     const char* subject = "Ergebnisse der Photovoltaikanlage";
     const char* host = emailCreds.smtpServer.c_str(); // Get SMTP server
@@ -290,6 +270,7 @@ void sendEmailTaskWeekly(void *parameter) {
 
     // Call sendEmail with the extracted parameters
     sendEmail(subject, emailText.c_str(), host, port, email, password, domain, senderName, recipientEmail);
+
 
     Serial.println("Email sent, task completed.");
     vTaskDelete(NULL);  // Task deleted after email sent

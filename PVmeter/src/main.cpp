@@ -18,7 +18,7 @@
 #define IR_RECV_D1 3
 
 // Declare global variables
-double lat, lon, peakpower, loss, angle;
+float lat, lon, peakpower, loss, angle, degradation20Jahre;
 int year, aspect, age;
 String pvtechchoice, mountingplace;
 
@@ -29,11 +29,15 @@ const char* parameterFile = "/params.json";
 
 String downloadURL;
 
+const char* filename = "/PV_GIS_Data.csv";    // File to save in SPIFFS
+const char* markDataBegin = "time,P";
+const int csvColumn = 1;
+
 // Initialize email credentials
 EmailCredentials emailCreds;
 
 // Required size for the array
-size_t arraySize = 8760; // Number of elements
+size_t arraySize = 8784; // Number of elements
   
 
 float* PVData = allocateFloatArray(arraySize);
@@ -42,6 +46,25 @@ float* SensorMaxPower = allocateFloatArray(arraySize);
 
 std::list<Sensor *> *sensors = new std::list<Sensor *>();
 TaskHandle_t sensorTaskHandle = NULL;
+
+float get_Altersfaktor(float given_faktor = 0.8, int alter = 0){
+  float faktor = (1 - given_faktor)/20;
+  float altersfaktor = 1 - (alter * faktor);
+  return altersfaktor;
+}
+
+bool check_breakdown(struct ergebnisTag ErgebnisWoche[7]){
+  bool breakdown_check = false;
+  for( int i = 6; i >= 0; i--){
+    if (ErgebnisWoche[i].breakdown == true){
+      breakdown_check= true;
+    }
+    else {
+      break;
+    }
+  }
+  return breakdown_check;
+}
 
 void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState)
 {
@@ -98,10 +121,6 @@ void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState
               if (SensorMaxPower[index] < value) {
                 SensorMaxPower[index] = value;
               }
-    
-              // ch
-              // writeToCSV(value, 99);
-
             }
           }
 
@@ -190,7 +209,6 @@ void setup() {
 
   // Initialize LittleFS
   initLittleFS();
-  listLittleFSFiles();
 
     
   
@@ -215,11 +233,11 @@ void setup() {
 
 
 
-  const char* filename = "/newFile.csv";    // File to save in SPIFFS
-  const char* markDataBegin = "time,P";
-  const int csvColumn = 1;
 
-  listLittleFSFiles();
+
+  // csv einlesen
+  readCSVtoArray(filename, PVData,  arraySize, markDataBegin, csvColumn);
+  readCSVtoArray("/SensorData.csv", SensorMaxPower,  arraySize, "", 0);
 
   if (!readParametersFromFile(parameterFile)) {
     Serial.println("Failed to read parameters from file");
@@ -244,10 +262,10 @@ void loop() {
   int Wochentag = rtc.getDayofWeek();
   int Stunde = rtc.getHour(false);
   int Minute = rtc.getMinute();
-  float altersfaktor = 1;   // replace
 
   if(Wochentag = 0 && Stunde==0 && Minute==0 && comparingStarted == false){
     //maybe kill Sensor Task to get ressources for processing
+
 
     //if first day of week, and 0:00 -> eval last day of old week, then send Mail
     comparingStarted = true;
@@ -259,16 +277,13 @@ void loop() {
       Wochentag -= 1;
     }
 
+    float altersfaktor = get_Altersfaktor(degradation20Jahre, age);
     int indexGestern = calculateDataIndex() -24;
     ErgebnisWoche[Wochentag] = CompareOneDay(PVData, SensorMaxPower, altersfaktor, indexGestern, peakpower);
+    saveArrayToCSV("/SensorData.csv", SensorMaxPower, arraySize);
     //send Mail
-    // all breakdown values der Woche zusammenfassen
-    
-    float values[16] = {true, 1.2, 1.5, 0.8, 1.1, 1.3, 1.0, 1.4, 
-                    300.0, 320.0, 290.0, 310.0, 330.0, 340.0, 280.0, 0.9};
     // Create the task, passing the parameters as a void pointer
-    xTaskCreate(sendEmailTaskWeekly, "EmailTask", 2048, (void*)values, 1, NULL);  
-    //create Task
+    xTaskCreate(sendEmailTaskWeekly, "EmailTask", 2048, NULL, 1, NULL);  
 
   } else if (Stunde==0 && Minute==0 && comparingStarted == false) {
         //maybe kill Sensor Task to get ressources for processing
@@ -280,9 +295,11 @@ void loop() {
     } else {
       Wochentag -= 1;
     }
-
+    float altersfaktor = get_Altersfaktor(degradation20Jahre, age);
     int indexGestern = calculateDataIndex() -24;
     ErgebnisWoche[Wochentag] = CompareOneDay(PVData, SensorMaxPower, altersfaktor, indexGestern, peakpower);
+    saveArrayToCSV("/SensorData.csv", SensorMaxPower, arraySize);
+
   } else if (Stunde==0 && Minute==1) {
     comparingStarted == false;
   }

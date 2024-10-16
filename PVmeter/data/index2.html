@@ -49,6 +49,9 @@
     <label for="age">Age (years):</label>
     <input type="number" id="age" name="age" min="0" required>
 
+    <label for="degradation">Degradation after 20 years (e.g.: 0.8):</label>
+    <input type="number" id="degradation" name="degradation" min="0" required>
+
     <input type="submit" value="Submit">
   </form>
 
@@ -122,6 +125,13 @@
     <button onclick="location.href='/deleteWifi'">Delete Wi-Fi Credentials</button>
     <button onclick="location.href='/connectWifi'">Connect to Wi-Fi</button>
   </div>
+
+  <h2>Download raw Sensor Data</h2>
+  <div class="button-group">
+    <button onclick="location.href='/download'">Download</button>
+
+  </div>
+
 
   <p><a href="/">Back to Home</a></p>
 </body>

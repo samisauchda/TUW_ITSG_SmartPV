@@ -16,7 +16,7 @@
 #include "Sensor.h"
 #include "email.h"
 #include "timeFunctions.h"
-#include "download.h"
+// #include "download.h"
 
 // Network credentials for Access Point
 const char* ssidAP = "ESP32-Access-Point";
@@ -26,11 +26,16 @@ const char* passwordAP = "12345678";
 String ssid = "";
 String password = "";
 
+extern size_t arraySize;
+extern const char* filename;    // File to save in SPIFFS
+extern const char* markDataBegin;
+extern const int csvColumn;
+
 // File to store parameters
 extern const char* parameterFile;
 
 // Declare the variables as extern so that they can be used here
-extern double lat, lon, peakpower, loss, angle;
+extern float lat, lon, peakpower, loss, angle, degradation20Jahre;
 extern int year, aspect, age;
 extern String pvtechchoice, mountingplace;
 
@@ -77,6 +82,7 @@ String readParameters();
 void saveParameters(AsyncWebServerRequest *request);
 void deleteParameters();
 String readHTMLFile(const char * filePath);
+void handleFileDownload(AsyncWebServerRequest *request);
 
 // Forward declare the function to read parameters
 bool readParametersFromFile(const char* path);
@@ -152,76 +158,6 @@ bool connectToWiFi() {
     return false;
   }
 }
-
-void downloadFileToLittleFS(const String &filepath, const String &url) {
-    // Wait for WiFi connection
-    if ((WiFi.status() == WL_CONNECTED)) {
-        File file = LittleFS.open(filepath.c_str(), FILE_WRITE);
-
-        if (!file) {
-            Serial.println("[LittleFS] Failed to open file for writing.");
-            return;
-        }
-
-        HTTPClient http;
-
-        Serial.print("[HTTP] begin...\n");
-
-        // Configure the server and URL (no port parameter needed)
-        http.begin(url);
-
-        Serial.print("[HTTP] GET...\n");
-        // Start connection and send HTTP header
-        int httpCode = http.GET();
-
-        if (httpCode > 0) {
-            // HTTP header has been sent and Server response header has been handled
-            Serial.printf("[HTTP] GET... code: %d\n", httpCode);
-
-            // File found at server
-            if (httpCode == HTTP_CODE_OK) {
-                // Get length of the document (is -1 when Server sends no Content-Length header)
-                int len = http.getSize();
-
-                // Create buffer for reading
-                uint8_t buff[128] = { 0 };
-
-                // Get TCP stream
-                WiFiClient *stream = http.getStreamPtr();
-
-                // Read all data from server
-                while (http.connected() && (len > 0 || len == -1)) {
-                    // Get available data size
-                    size_t size = stream->available();
-
-                    if (size) {
-                        // Read up to 128 bytes
-                        int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
-
-                        // Write it to LittleFS file
-                        file.write(buff, c);
-                        // Optionally, write to Serial for debugging
-                        //Serial.write(buff, c);
-
-                        if (len > 0) {
-                            len -= c;
-                        }
-                    }
-                    delay(1);
-                }
-
-                Serial.println();
-                Serial.print("[HTTP] connection closed or file end.\n");
-                file.close();
-            }
-        } else {
-            Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        }
-
-        http.end();
-    }
-}
-
 
 void timerCallback(TimerHandle_t xTimer) {
     Serial.println("Timer expired, killing webserver task...");
@@ -308,15 +244,16 @@ void startCredentialsServer(const char* htmlPage){
     credentialsServer.end();
     // dnsServer.stop();
     Serial.println("deleting credentials Task...");
-    vTaskDelete(credentialsTaskHandle);
+    
     Serial.println("deleted credentials Task. Starting WebServer task");
     xTaskCreate(
       webServerTask,        // Function to implement the task
       "WebServerTask",      // Name of the task
-      4096,                // Stack size in words
+      8192,                // Stack size in words
       NULL,                 // Task input parameter
       1,                    // Priority of the task
       &webServerTaskHandle); // Task handle
+    vTaskDelete(credentialsTaskHandle);
     Serial.println("WebServer Task Started.");
   });
 
@@ -407,7 +344,6 @@ void startWebServer(const char* htmlPage) {
     saveParameters(request);
     request->redirect("/");
     readParametersFromFile(parameterFile);
-    downloadURL = buildURL("seriescalc");
   });
 
   // Handle delete button
@@ -420,14 +356,14 @@ void startWebServer(const char* htmlPage) {
   server.on("/downloadFile", HTTP_GET, [](AsyncWebServerRequest *request) {
         Serial.println("Calling downloadFile function");
 
-        xTaskCreate(
-          downloadTask,     // Task function
-          "DownloadTask",   // Name of the task
-          8192,             // Stack size (in bytes)
-          NULL,             // No parameters are passed to the task
-          1,                // Priority of the task
-          NULL              // Task handle
-        );
+        // xTaskCreate(
+        //   downloadTask,     // Task function
+        //   "DownloadTask",   // Name of the task
+        //   8192,             // Stack size (in bytes)
+        //   NULL,             // No parameters are passed to the task
+        //   1,                // Priority of the task
+        //   NULL              // Task handle
+        // );
         // String downloadURL = buildURL("seriescalc");
         // Serial.println(downloadURL);
         
@@ -437,6 +373,40 @@ void startWebServer(const char* htmlPage) {
         // Respond immediately to the client
         request->send(200, "text/plain", "Download started.");
     });
+
+  server.on("/upload", HTTP_POST, [](AsyncWebServerRequest *request) {},
+    [](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+      if (!index) {
+        Serial.printf("UploadStart: %s\n", filename.c_str());
+        if (LittleFS.exists("/PV_GIS_Data.csv")) {
+          LittleFS.remove("/PV_GIS_Data.csv");
+          Serial.printf("Deleted existing file.");
+        }
+        listLittleFSFiles();
+        // Open file for writing (create if it doesn't exist)
+        File file = LittleFS.open("/PV_GIS_Data.csv", FILE_WRITE);
+        if (!file) {
+          Serial.println("Failed to open file for writing");
+          return;
+        }
+        file.close();
+      }
+
+      // Open file in append mode and write to it
+      File file = LittleFS.open("/PV_GIS_Data.csv", FILE_APPEND);
+      if (file) {
+        if (file.write(data, len) != len) {
+          Serial.println("Failed to write file");
+        }
+        file.close();
+      }
+
+      if (final) {
+        Serial.printf("UploadEnd: %s, %u B\n", filename.c_str(), index + len);
+        request->send(200, "text/plain", "File Uploaded Successfully!");
+        readCSVtoArray("/PV_GIS_Data.csv", PVData,  arraySize, markDataBegin, csvColumn);
+      }
+  });
 
 
   server.on("/sendTestMail", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -474,6 +444,8 @@ void startWebServer(const char* htmlPage) {
     deleteEmailCredentials();
     request->redirect("/");
   });
+
+  server.on("/download", HTTP_GET, handleFileDownload);
   
 
   server.begin();
@@ -515,6 +487,7 @@ String readParameters() {
   params += "Angle: " + String((const char*)jsonDoc["angle"]) + "<br>";
   params += "Aspect: " + String((const char*)jsonDoc["aspect"]) + "<br>";
   params += "Age: " + String((const char*)jsonDoc["age"]) + "<br>";
+  params += "Degradation: " + String((const char*)jsonDoc["degradation"]) + "<br>";
   
   return params;
 }
@@ -535,6 +508,7 @@ void saveParameters(AsyncWebServerRequest *request) {
   if (request->hasParam("angle")) jsonDoc["angle"] = request->getParam("angle")->value();
   if (request->hasParam("aspect")) jsonDoc["aspect"] = request->getParam("aspect")->value();
   if (request->hasParam("age")) jsonDoc["age"] = request->getParam("age")->value();
+  if (request->hasParam("degradation")) jsonDoc["degradation"] = request->getParam("degradation")->value();
 
   // Save JSON to file
   File file = LittleFS.open(parameterFile, "w");
@@ -704,6 +678,7 @@ bool readParametersFromFile(const char* path) {
   angle = jsonDoc["angle"];
   aspect = jsonDoc["aspect"];
   age = jsonDoc["age"];
+  degradation20Jahre = jsonDoc["degradation"];
 
   // Close the file
   file.close();
@@ -711,5 +686,15 @@ bool readParametersFromFile(const char* path) {
   return true;
 }
 
+void handleFileDownload(AsyncWebServerRequest *request) {
+  String path = "/SensorData.csv"; // Change this to your file path
+
+  if (LittleFS.exists(path)) {
+    // Create a response directly from LittleFS without adding headers manually
+    request->send(LittleFS, path, "application/octet-stream");
+  } else {
+    request->send(404, "text/plain", "File Not Found");
+  }
+}
 
 #endif

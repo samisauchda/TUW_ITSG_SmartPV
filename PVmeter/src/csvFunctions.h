@@ -10,7 +10,8 @@
 #include <LittleFS.h>
 #include <HTTPClient.h>
 
-void readCSVtoArray(const char* filePath, float dataArray[], int maxRows);
+void readCSVtoArray(const char* filePath, float dataArray[], int maxRows, String dataStartMarker, int columnIndex);
+void saveArrayToCSV(const char* filename, float* array, size_t arraySize);
 float* allocateFloatArray(size_t arraySize);
 
 // Function to read a CSV file and store it in arrays (only first two columns)
@@ -83,17 +84,51 @@ void readCSVtoArray(const char* filePath, float dataArray[], int maxRows, String
 
   file.close();
   
-  // Print CSV data from arrays (for debugging)
-  for (int i = 0; i < rowIndex; i++) {
-    Serial.print("Row ");
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.println(dataArray[i]);
-  }
+  // // Print CSV data from arrays (for debugging)
+  // for (int i = 0; i < rowIndex; i++) {
+  //   Serial.print("Row ");
+  //   Serial.print(i);
+  //   Serial.print(": ");
+  //   Serial.println(dataArray[i]);
+  // }
 
   return;
 }
 
+void saveArrayToCSV(const char* filename, float* array, size_t arraySize) {
+  // Check if LittleFS is mounted
+  if (!LittleFS.begin()) {
+    Serial.println("Failed to mount LittleFS");
+    return;
+  }
+  
+  // Open the file for writing
+  File file = LittleFS.open(filename, FILE_WRITE);
+  
+  // Check if the file opened successfully
+  if (!file) {
+    Serial.println("Failed to open file for writing");
+    return;
+  }
+  
+  // Write array elements in CSV format
+  for (size_t i = 0; i < arraySize; i++) {
+    file.print(String(array[i]));
+    
+    // Add a comma between elements except the last one
+    if (i < arraySize - 1) {
+      file.print(",");
+    }
+  }
+  
+  file.println(); // New line after writing the array
+  
+  // Close the file after writing
+  file.close();
+  
+  // Success message
+  Serial.println("Array saved to CSV file successfully");
+}
 
 // Function to allocate memory for a float array
 float* allocateFloatArray(size_t arraySize) {

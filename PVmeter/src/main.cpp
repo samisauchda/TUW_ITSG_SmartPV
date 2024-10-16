@@ -47,6 +47,12 @@ float* SensorMaxPower = allocateFloatArray(arraySize);
 std::list<Sensor *> *sensors = new std::list<Sensor *>();
 TaskHandle_t sensorTaskHandle = NULL;
 
+struct ergebnisTag ErgebnisWoche[7] = {};
+
+bool comparingStarted = false;
+
+void initLittleFS();
+
 float get_Altersfaktor(float given_faktor = 0.8, int alter = 0){
   float faktor = (1 - given_faktor)/20;
   float altersfaktor = 1 - (alter * faktor);
@@ -132,16 +138,7 @@ void process_message(byte *buffer, size_t len, Sensor *sensor, State sensorState
     }
 }
 
-void initLittleFS();
 
-struct ergebnisTag {
-  float diff_min;
-  bool breakdown;
-};
-
-struct ergebnisTag ErgebnisWoche[7] = {};
-
-bool comparingStarted = false;
 
 struct ergebnisTag CompareOneDay(float Vergleich[], float Mess[], float altersfaktor, int index, int kWp) {
   ergebnisTag erg = {.diff_min = 100, .breakdown = false};
@@ -283,7 +280,7 @@ void loop() {
     saveArrayToCSV("/SensorData.csv", SensorMaxPower, arraySize);
     //send Mail
     // Create the task, passing the parameters as a void pointer
-    xTaskCreate(sendEmailTaskWeekly, "EmailTask", 2048, NULL, 1, NULL);  
+    xTaskCreate(sendEmailTaskWeekly, "EmailTask", 8192, NULL, 1, NULL);  
 
   } else if (Stunde==0 && Minute==0 && comparingStarted == false) {
         //maybe kill Sensor Task to get ressources for processing
@@ -299,6 +296,9 @@ void loop() {
     int indexGestern = calculateDataIndex() -24;
     ErgebnisWoche[Wochentag] = CompareOneDay(PVData, SensorMaxPower, altersfaktor, indexGestern, peakpower);
     saveArrayToCSV("/SensorData.csv", SensorMaxPower, arraySize);
+
+    //remove later!!!
+    xTaskCreate(sendEmailTaskWeekly, "EmailTask", 8192, NULL, 1, NULL);  
 
   } else if (Stunde==0 && Minute==1) {
     comparingStarted == false;

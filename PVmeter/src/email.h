@@ -24,11 +24,24 @@ struct EmailParams {
     String message;
 };
 
+struct ergebnisTag {
+  float diff_min;
+  bool breakdown;
+};
+
+extern struct ergebnisTag ErgebnisWoche[7];
+
 extern const char* emailCredentialsPath;
 
-const char * emailTemplateIP = "This is the first email. Your IP address is: %s";
-const String emailTemplateWeekly = "This is the second email with 7 values:\nValue 1: {value1}\nValue 2: {value2}\nValue 3: {value3}\nValue 4: {value4}\nValue 5: {value5}\nValue 6: {value6}\nValue 7: {value7}.";
-String emailText;
+// Declare the variables as extern so that they can be used here
+extern float lat, lon, peakpower, loss, angle, degradation20Jahre;
+extern int year, aspect, age;
+extern String pvtechchoice, mountingplace;
+
+const char * emailTemplateIP = "PVMeter is setup and running. Your IP address is: %s";
+const String emailTemplateWeekly = 
+    "Ergebnisse der Photovoltaik vom $Begin$ bis zum $End$\n\nErgbenis der Totalausfallerkennung: $breakdown$\n(Springt an, falls die PV-Anlage kaum/keine Leistung im Verhaeltnis zu den Vergleichswerten erzeugt hat.)\n\n Montag:      Vergleichsfaktor: $Vergleichsfaktor0$, PVGis: $PVGis0$ \nDienstag:    Vergleichsfaktor: $Vergleichsfaktor1$ \n Mittwoch:    Vergleichsfaktor: $Vergleichsfaktor2$ \nDonnerstag:  Vergleichsfaktor: $Vergleichsfaktor3$ \nFreitag:     Vergleichsfaktor: $Vergleichsfaktor4$ \nSamstag:     Vergleichsfaktor: $Vergleichsfaktor5$ \n Sonntag:     Vergleichsfaktor: $Vergleichsfaktor6$ \n\n(der Vergleichsfaktor ist die Differenz zu den Vergleichswerten multipliziert mit einem Altersfaktor[$Altersfaktor$].)\n";
+
 // empty char array for IP paramater handling
 char ipStr[16]; // Allocate memory for the IP address string
 
@@ -39,6 +52,9 @@ extern float* SensorMaxPower;
 
 /* Declare the global used SMTPSession object for SMTP transport */
 SMTPSession smtp;
+
+extern bool check_breakdown(struct ergebnisTag ErgebnisWoche[7]);
+extern float get_Altersfaktor(float given_faktor, int alter);
 
 void sendEmailTask(void *parameter);
 void sendEmailTaskIPaddress(void *parameter);
@@ -210,54 +226,28 @@ bool loadEmailCredentials() {
   return true;
 }
 
-String updateEmailText(bool breakdown, float Vergleichsfaktor1, float Vergleichsfaktor2, float Vergleichsfaktor3,
-                       float Vergleichsfaktor4, float Vergleichsfaktor5, float Vergleichsfaktor6, float Vergleichsfaktor7,
-                       float Energie1, float Energie2, float Energie3, float Energie4, float Energie5, float Energie6, 
-                       float Energie7, float Altersfaktor) {
-    // Create the email template
-    String mailtext = 
-        "Ergebnisse der Photovoltaik vom $Begin$ bis zum $End$\n"
-        "Ergebnisse der Totalausfallerkennung: $breakdown$\n\n"
-        "(Springt an, falls die PV-Anlage kaum/keine Leistung im Verhaeltnis zu den Vergleichswerten erzeugt hat.)\n\n"
-        "\n\n"
-        "Montag:      gemessene max. Leistung: $Energie1$ \n\n"
-        "Dienstag:    Vergleichsfaktor: $Vergleichsfaktor2$, gemessene Leistung: $Energie2$ \n\n"
-        "Mittwoch:    Vergleichsfaktor: $Vergleichsfaktor3$, gemessene Leistung: $Energie3$ \n\n"
-        "Donnerstag:  Vergleichsfaktor: $Vergleichsfaktor4$, gemessene Leistung: $Energie4$ \n\n"
-        "Freitag:     Vergleichsfaktor: $Vergleichsfaktor5$, Energie: $Energie5$ \n\n"
-        "Samstag:     Vergleichsfaktor: $Vergleichsfaktor6$, Energie: $Energie6$ \n\n"
-        "Sonntag:     Vergleichsfaktor: $Vergleichsfaktor7$, Energie: $Energie7$ \n\n"
-        "\n\n"
-        "(der vergleichswert ist die Differenz zu den Vergleichswerten multipliziert mit einem Altersfaktor [$Altersfaktor$].)\n\n";
-
-    // Replace placeholders with actual values
-    mailtext.replace("$breakdown$", breakdown ? "Ja" : "Nein");
-    mailtext.replace("$Vergleichsfaktor1$", String(Vergleichsfaktor1));
-    mailtext.replace("$Vergleichsfaktor2$", String(Vergleichsfaktor2));
-    mailtext.replace("$Vergleichsfaktor3$", String(Vergleichsfaktor3));
-    mailtext.replace("$Vergleichsfaktor4$", String(Vergleichsfaktor4));
-    mailtext.replace("$Vergleichsfaktor5$", String(Vergleichsfaktor5));
-    mailtext.replace("$Vergleichsfaktor6$", String(Vergleichsfaktor6));
-    mailtext.replace("$Vergleichsfaktor7$", String(Vergleichsfaktor7));
-    mailtext.replace("$Energie1$", String(Energie1));
-    mailtext.replace("$Energie2$", String(Energie2));
-    mailtext.replace("$Energie3$", String(Energie3));
-    mailtext.replace("$Energie4$", String(Energie4));
-    mailtext.replace("$Energie5$", String(Energie5));
-    mailtext.replace("$Energie6$", String(Energie6));
-    mailtext.replace("$Energie7$", String(Energie7));
-    mailtext.replace("$Altersfaktor$", String(Altersfaktor));
-
-    return mailtext;
-}
-
 // Function to send the email task with the constructed message
 void sendEmailTaskWeekly(void *parameter) {
     loadEmailCredentials(); // Load email credentials from storage
 
-    // Unpack the parameters from the void pointer (you can use a struct for better handling)
+
+
     bool isBreakdown = check_breakdown(ErgebnisWoche);
     // breakdown aus allen Tagen muss kombiniert werden zu einem
+    String emailText = emailTemplateWeekly;
+
+    emailText.replace("$breakdown$", isBreakdown ? "true" : "false");
+    emailText.replace("$Begin$", "TAG");
+    emailText.replace("$End$", "TAG");
+    emailText.replace("$Altersfaktor$", String(get_Altersfaktor(degradation20Jahre, age)));
+
+    emailText.replace("$Vergleichsfaktor0$", String(ErgebnisWoche[0].diff_min));
+    emailText.replace("$Vergleichsfaktor1$", String(ErgebnisWoche[1].diff_min));
+    emailText.replace("$Vergleichsfaktor2$", String(ErgebnisWoche[2].diff_min));
+    emailText.replace("$Vergleichsfaktor3$", String(ErgebnisWoche[3].diff_min));
+    emailText.replace("$Vergleichsfaktor4$", String(ErgebnisWoche[4].diff_min));
+    emailText.replace("$Vergleichsfaktor5$", String(ErgebnisWoche[5].diff_min));
+    emailText.replace("$Vergleichsfaktor6$", String(ErgebnisWoche[6].diff_min));
     
     const char* subject = "Ergebnisse der Photovoltaikanlage";
     const char* host = emailCreds.smtpServer.c_str(); // Get SMTP server

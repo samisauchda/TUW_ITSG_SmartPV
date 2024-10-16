@@ -413,7 +413,8 @@ void startWebServer(const char* htmlPage) {
     Serial.println("Trying to send Test mail");
     Serial.print("Free heap: ");
     Serial.println(ESP.getFreeHeap());
-    xTaskCreate(sendEmailTaskIPaddress, "Send Email Task", 8192, NULL, 1, NULL);
+    // xTaskCreate(sendEmailTaskIPaddress, "Send Email Task", 8192, NULL, 1, NULL);
+    xTaskCreate(sendEmailTaskWeekly, "Send Email Task", 8192, NULL, 1, NULL);
     // sendEmail();
     request->redirect("/");
   });

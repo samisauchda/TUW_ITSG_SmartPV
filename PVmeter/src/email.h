@@ -5,6 +5,10 @@
 #include "LittleFS.h"
 #include <stdio.h>
 #include <map>
+#include <Arduino.h>
+#include "helperFunctions.h"
+#include "timeFunctions.h"
+
 
 // Structure to store email credentials
 struct EmailCredentials {
@@ -40,7 +44,7 @@ extern String pvtechchoice, mountingplace;
 
 const char * emailTemplateIP = "PVMeter is setup and running. Your IP address is: %s";
 const String emailTemplateWeekly = 
-    "Ergebnisse der Photovoltaik vom $Begin$ bis zum $End$\n\nErgbenis der Totalausfallerkennung: $breakdown$\n(Springt an, falls die PV-Anlage kaum/keine Leistung im Verhaeltnis zu den Vergleichswerten erzeugt hat.)\n\n Montag:      Vergleichsfaktor: $Vergleichsfaktor0$, PVGis: $PVGis0$ \nDienstag:    Vergleichsfaktor: $Vergleichsfaktor1$ \n Mittwoch:    Vergleichsfaktor: $Vergleichsfaktor2$ \nDonnerstag:  Vergleichsfaktor: $Vergleichsfaktor3$ \nFreitag:     Vergleichsfaktor: $Vergleichsfaktor4$ \nSamstag:     Vergleichsfaktor: $Vergleichsfaktor5$ \n Sonntag:     Vergleichsfaktor: $Vergleichsfaktor6$ \n\n(der Vergleichsfaktor ist die Differenz zu den Vergleichswerten multipliziert mit einem Altersfaktor[$Altersfaktor$].)\n";
+    "Aktuelle IP Adresse: $IP$\n\nErgebnisse der Photovoltaik vom $Begin$ bis zum $End$\n\nErgbenis der Totalausfallerkennung: $breakdown$\n(Springt an, falls die PV-Anlage kaum/keine Leistung im Verhaeltnis zu den Vergleichswerten erzeugt hat.)\n\n Montag:      Vergleichsfaktor: $Vergleichsfaktor0$\nDienstag:    Vergleichsfaktor: $Vergleichsfaktor1$ \nMittwoch:    Vergleichsfaktor: $Vergleichsfaktor2$ \nDonnerstag:  Vergleichsfaktor: $Vergleichsfaktor3$ \nFreitag:     Vergleichsfaktor: $Vergleichsfaktor4$ \nSamstag:     Vergleichsfaktor: $Vergleichsfaktor5$ \nSonntag:     Vergleichsfaktor: $Vergleichsfaktor6$ \n\n(der Vergleichsfaktor ist die Differenz zu den Vergleichswerten multipliziert mit einem Altersfaktor[$Altersfaktor$].)\n";
 
 // empty char array for IP paramater handling
 char ipStr[16]; // Allocate memory for the IP address string
@@ -236,9 +240,39 @@ void sendEmailTaskWeekly(void *parameter) {
     // breakdown aus allen Tagen muss kombiniert werden zu einem
     String emailText = emailTemplateWeekly;
 
+    IPAddress ip = WiFi.localIP();
+    String ipStr = ipToString(ip);
+
+    // Create a buffer to store formatted strings
+    char dateStr[20];  // String buffer for formatted date (DD-MM-YYYY)
+    
+    // Calculate yesterday's date
+    time_t now;
+    time(&now);  // Get current time as time_t
+    now -= 86400;  // Subtract 1 day
+    struct tm *yesterday = localtime(&now);
+    
+    // Format yesterday's date to string
+    strftime(dateStr, sizeof(dateStr), "%d-%m-%Y", yesterday);
+    String yesterdayStr = String(dateStr);  // Convert to String class
+    Serial.println("Yesterday's Date: " + yesterdayStr);
+    
+    // Calculate the date of one week ago
+    time(&now);  // Reset now to current time
+    now -= 7 * 86400;  // Subtract 7 days
+    struct tm *weekAgo = localtime(&now);
+    
+    // Format one week ago date to string
+    strftime(dateStr, sizeof(dateStr), "%d-%m-%Y", weekAgo);
+    String weekAgoStr = String(dateStr);  // Convert to String class
+    Serial.println("Date one week ago: " + weekAgoStr);
+    
+
+    emailText.replace("$IP$",ipStr);
+
     emailText.replace("$breakdown$", isBreakdown ? "true" : "false");
-    emailText.replace("$Begin$", "TAG");
-    emailText.replace("$End$", "TAG");
+    emailText.replace("$Begin$", weekAgoStr);
+    emailText.replace("$End$", yesterdayStr);
     emailText.replace("$Altersfaktor$", String(get_Altersfaktor(degradation20Jahre, age)));
 
     emailText.replace("$Vergleichsfaktor0$", String(ErgebnisWoche[0].diff_min));

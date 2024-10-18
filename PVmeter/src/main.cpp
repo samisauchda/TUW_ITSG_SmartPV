@@ -185,9 +185,6 @@ void setup() {
   sleep(5);
   // Initialize Serial Monitor
   Serial.begin(115200);
-  esp_log_level_set("*", ESP_LOG_VERBOSE);
-
-  while(!Serial){}
 
 
   pinMode(IR_RECV_D1, INPUT_PULLUP);
@@ -260,7 +257,10 @@ void loop() {
   int Stunde = rtc.getHour(false);
   int Minute = rtc.getMinute();
 
+  Serial.println(String(Minute));
+
   if(Wochentag = 0 && Stunde==0 && Minute==0 && comparingStarted == false){
+  // if((Minute==0 % 2 == 0) && comparingStarted == false){
     //maybe kill Sensor Task to get ressources for processing
 
 
@@ -300,7 +300,8 @@ void loop() {
     //remove later!!!
     xTaskCreate(sendEmailTaskWeekly, "EmailTask", 8192, NULL, 1, NULL);  
 
-  } else if (Stunde==0 && Minute==1) {
+  } else if (Stunde==0 && Minute==1 && comparingStarted == true) {
+  // } else if((Minute+1==0 % 2 == 0) && comparingStarted == true){
     comparingStarted == false;
   }
 

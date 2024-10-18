@@ -56,5 +56,8 @@ void listLittleFSFiles() {
   }
 }
 
+String ipToString(IPAddress ip) {
+  return String(ip[0]) + "." + String(ip[1]) + "." + String(ip[2]) + "." + String(ip[3]);
+}
 
 #endif

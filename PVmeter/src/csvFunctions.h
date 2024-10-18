@@ -97,6 +97,7 @@ void readCSVtoArray(const char* filePath, float dataArray[], int maxRows, String
 
 void saveArrayToCSV(const char* filename, float* array, size_t arraySize) {
   // Check if LittleFS is mounted
+  Serial.println("Save CSV to LittleFS");
   if (!LittleFS.begin()) {
     Serial.println("Failed to mount LittleFS");
     return;
@@ -145,7 +146,10 @@ float* allocateFloatArray(size_t arraySize) {
   if (freeHeap >= requiredMemory) {
     float* array = (float*) malloc(requiredMemory);
     if (array != NULL) {
-      Serial.println("Float array allocated successfully.");
+      // Initialize the allocated memory to 0
+      memset(array, 0, requiredMemory); // Set all bytes to 0
+      
+      Serial.println("Float array allocated and initialized to 0 successfully.");
       return array; // Return the allocated array
     } else {
       Serial.println("Failed to allocate memory for the float array.");
@@ -156,6 +160,7 @@ float* allocateFloatArray(size_t arraySize) {
     return NULL;
   }
 }
+
 
 
 #endif
